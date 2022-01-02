@@ -8,8 +8,10 @@ use std::ops::Div;
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-
 use std::fmt::Result;
+
+use std::f64::consts::PI;
+
 // use std::collections::HashSet;
 
 #[derive(Default, Copy, Clone, PartialEq, Eq, Hash)]
@@ -39,7 +41,7 @@ impl<T: Signed + Copy + Debug> Debug for Cube<T> {
     }
 }
 
-// Allow casting Cube(1,2) to Cube(1.0, 2.0) and vice versa
+// Allow casting Cube(1,2) to Cube(1.0, 2.0)
 impl From<Cube<i32>> for Cube<f64> {
     fn from(cube_in: Cube<i32>) -> Self {
         Cube(f64::from(cube_in.0), f64::from(cube_in.1))
@@ -82,7 +84,7 @@ impl Cube<f64> {
     fn round(&self) -> Cube<i32> {
         let mut qi = self.q().round();
         let mut ri = self.r().round();
-        let mut si = self.s().round();
+        let si = self.s().round();
         let q_diff = qi - self.q();
         let r_diff = ri - self.r();
         let s_diff = si - self.s();
@@ -95,12 +97,34 @@ impl Cube<f64> {
     }
     fn lerp(&self, &other: &Cube<f64>, t: f64) -> Cube<f64> {
         Cube(
-            // int(round(a.q * (1.0 - t) + b.q * t)),
-            // int(round(a.r * (1.0 - t) + b.r * t)),
-            (self.q() * (1.0 - t) + other.q() * t).floor(),
-            (self.r() * (1.0 - t) + other.r() * t).floor(),
+            self.q() * (1.0 - t) + other.q() * t,
+            self.r() * (1.0 - t) + other.r() * t,
         )
     }
+    fn to_pixel(&self, &layout: &Layout) -> [f64; 2] {
+        let matrix = layout.orientation;
+        let size = layout.size;
+        let origin = layout.origin;
+        let x = (matrix.f0 * self.q() + matrix.f1 * self.r()) * size[0];
+        let y = (matrix.f2 * self.q() + matrix.f3 * self.r()) * size[1];
+        [x + origin[0], y + origin[1]]
+    }
+    fn corner_offset(&layout: &Layout, corner: u8) -> [f64; 2] {
+        let matrix = layout.orientation;
+        let size = layout.size;
+        let angle = 2.0 * PI * (matrix.start_angle - corner as f64) / 6.0;
+        [size[0] * angle.cos(), size[1] * angle.sin()]
+    }
+    fn corners(&self, &layout: &Layout) -> [[f64; 2]; 6] {
+        let mut corners = [[0.0, 0.0]; 6];
+        let center = self.to_pixel(&layout);
+        for i in 0..6 {
+            let offset = Cube::<f64>::corner_offset(&layout, i);
+            corners[i as usize] = [center[0] + offset[0], center[1] + offset[1]];
+        }
+        corners
+    }
+
 }
 
 impl Cube<i32> {
@@ -129,7 +153,7 @@ impl Cube<i32> {
         let mut result = vec![Cube(0,0); size];
         let mut result_index = 0;
         for ring_number in 1..n+1 {
-            let mut ring = self.ring(ring_number);
+            let ring = self.ring(ring_number);
             for item in ring {
                 result[result_index] = item;
                 result_index += 1;
@@ -155,72 +179,22 @@ const DIRECTIONS: [Cube<i32>; 6] = [
     Cube(-1, 1), Cube(-1, 0), Cube(0, -1),
 ];
 
-// // Cubic coordinate
-// #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-// struct Point<T>{
-//     q: T,
-//     r: T,
-// }
-
-// impl<T, U> Add<Point<U>> for Point<T> where T: Add<U> {
-//     type Output = Point<<T as Add<U>>::Output>;
-
-//     fn add(self, rhs: Point<U>) -> Self::Output {
-//         Point {
-//             q: self.q + rhs.q,
-//             r: self.r + rhs.r,
-//         }
-//     }
-// }
-
-// impl<T> Sub for Point<T>
-// where T: std::ops::Sub<Output = dyn Num> {
-//     type Output = Point<T>;
-
-//     fn sub(self, other: Point<T>) -> Point<T> {
-//         Point (
-//             self.0 - other.0,
-//             self.1 - other.1,
-//             self.2 - other.2,
-//         )
-//     }
-// }
-
-// impl<T: Signed + Copy + Debug> Debug for Point<T> {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-//         f.debug_struct("Point")
-//          .field("q", &self.q)
-//          .field("r", &self.r)
-//          .field("s", &self.s())
-//          .finish()
-//     }
-// }
-
-// impl<T: Signed + Copy> Point<T> {
-//     fn s(&self) -> T {
-//         - self.q - self.r
-//     }
-// }
+// const DIRECTIONS: [Point<i32>; 6] = [
+//     Point{q: 1, r: -1}, Point{q: 1, r: 0}, Point{q: 0, r: 1},
+//     Point{q: -1, r: 1}, Point{q: -1, r: 0}, Point{q: 0, r: -1},
+// ];
 
 pub trait Summary {
     fn summarize(&self) -> String;
 }
 
 // impl<T> Point<T> where T: Copy + Signed + Div<i32, Output=T> {
-//     fn length(&self) -> T {
-//         (self.q.abs() + self.r.abs() + self.s().abs()) / 2
-//     }
-
     // fn get_neighbour(&self, direction: usize) -> Point<T> {
     //     *self + DIRECTIONS[direction]
     // }
 
     // fn get_nearest_neighbours(&self) -> [Point<T>; 6] {
     //     DIRECTIONS.map(|other| *self + other)
-    // }
-
-    // fn get_ring(&self) -> Vec<Point<T>> {
-    //     Vec::new()
     // }
 
     // fn get_n_nearest_neighbours(&self, n: u32) -> Vec<Point<T>> {
@@ -235,16 +209,6 @@ pub trait Summary {
     //     Vec::from_iter(nnn)
     // }
 // }
-
-// const DIRECTIONS: [Point<i32>; 6] = [
-//     Point(1, -1), Point(1, 0), Point(0, 1),
-//     Point(-1, 1), Point(-1, 0), Point(0, -1),
-// ];
-
-// const DIRECTIONS: [Point<i32>; 6] = [
-//     Point{q: 1, r: -1}, Point{q: 1, r: 0}, Point{q: 0, r: 1},
-//     Point{q: -1, r: 1}, Point{q: -1, r: 0}, Point{q: 0, r: -1},
-// ];
 
 fn main() {
     let c = Cube(1,1);
@@ -297,6 +261,63 @@ fn main() {
 // struct Board<T: Default, const N: usize> {
 //     elems: [T; N]
 // }
+
+#[derive(Clone, Copy)]
+struct Orientation {
+    f0: f64,
+    f1: f64,
+    f2: f64,
+    f3: f64,
+    b0: f64,
+    b1: f64,
+    b2: f64,
+    b3: f64,
+    start_angle: f64,
+}
+
+#[derive(Clone, Copy)]
+struct Layout {
+    orientation: Orientation,
+    size: [f64; 2],
+    origin: [f64; 2]
+}
+
+// no const sqrt() yet...
+const SQRT3: f64 = 1.732050807568877293527446341505872366942805253810380628055806; // sqrt(3)
+
+const POINTY: Orientation = Orientation {
+    f0: SQRT3, 
+    f1: SQRT3 / 2.0, 
+    f2: 0.0, 
+    f3: 3.0 / 2.0,
+    b0: SQRT3 / 3.0, 
+    b1: -1.0 / 3.0, 
+    b2: 0.0, 
+    b3: 2.0 / 3.0, 
+    start_angle: 0.5
+};
+
+const FLAT: Orientation = Orientation {
+    f0: 3.0 / 2.0,
+    f1: 0.0,
+    f2: SQRT3 / 2.0,
+    f3: SQRT3,
+    b0: 2.0 / 3.0,
+    b1: 0.0,
+    b2: -1.0 / 3.0,
+    b3: SQRT3 / 3.0,
+    start_angle: 0.0,
+};
+
+fn pixel_to_cube(&layout: &Layout, pixel: [f64; 2]) -> Cube<f64> {
+    let matrix = layout.orientation;
+    let size = layout.size;
+    let origin = layout.origin;
+    let pt = [(pixel[0] - origin[0]) / size[0], (pixel[1] - origin[1]) / size[1]];
+    let q = matrix.b0 * pt[0] + matrix.b1 * pt[1];
+    let r = matrix.b2 * pt[0] + matrix.b3 * pt[1];
+    Cube(q, r)
+}
 
 fn equal_cube(name: &str, a:Cube<i32>, b:Cube<i32>){
     // assert!(a.q() == b.q() && a.s() == b.s() && a.r() == b.r());
