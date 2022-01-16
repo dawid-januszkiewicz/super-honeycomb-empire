@@ -12,7 +12,9 @@ use std::fmt::Formatter;
 use std::fmt::Result;
 
 use crate::cubic::*;
-use crate::army::Army;
+use crate::Army;
+use crate::player::Player;
+use crate::World;
 
 #[derive(Debug)]
 pub struct Locality {
@@ -87,42 +89,11 @@ impl Display for Tile {
 //     }
 // }
 
-pub struct Player {
-    pub name: String,
-    pub actions: i32,
-    pub ai: bool,
-    pub selection: Option<Cube<i32>>,
-
-    // self.game = game
-    // self.camera = None
-    // self.actions = ACTIONS_PER_TURN
-    // self.starting_cube = None
-    // self.color = color
-    // self.is_defeated = False
-}
-
-impl Player {
-    pub fn new(name: &str) -> Player {
-        Player {
-            name: name.to_string(),
-            actions: 5,
-            ai: false,
-            selection: Some(Cube::new(0,0)),
-        }
-    }
-}
-
-impl Display for Player {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "({})", self.name)
-    }
-}
-
 pub struct Game {
     pub turn: i32,
     pub players: Vec<Player>,//[&'a Player<'a>],//Vec<&Player>,
     //pub current_player: &'a Player, // change it to a function?
-    pub world: HashMap<Cube<i32>, Tile>,
+    pub world: World,
 }
 
 impl Game { // Game<'_>
@@ -184,27 +155,27 @@ impl Game { // Game<'_>
             }
         }
 
-//         # First apply base growth
-//         for tile in tiles_owned_by_player:
-//             if not tile.locality:
-//                 continue
-//             if tile.locality.category == "City":
-//                 if not tile.army:
-//                     tile.army = army.Army(army.BASE_GROWTH_CITY, 1/2 * army.BASE_GROWTH_CITY, tile.owner)
-//                 elif tile.army.manpower < army.MAX_STACK_SIZE:
-//                     tile.army.manpower += army.BASE_GROWTH_CITY
-//                     tile.army.morale += 1/2 * army.BASE_GROWTH_CITY
-//             elif tile.locality.category == "Capital":
-//                 if not tile.army:
-//                     tile.army = army.Army(army.BASE_GROWTH_CAPITAL, 1/2 * army.BASE_GROWTH_CAPITAL, tile.owner)
-//                 elif tile.army.manpower < army.MAX_TRAVEL_DISTANCE:
-//                     tile.army.manpower += army.BASE_GROWTH_CITY
-//                     tile.army.morale += 1/2 * army.BASE_GROWTH_CITY
-//             if tile.army:
-//                 if tile.army.manpower > army.MAX_STACK_SIZE:
-//                     tile.army.manpower = army.MAX_STACK_SIZE
-//                 if tile.army.morale > army.MAX_STACK_SIZE:
-//                     tile.army.morale = army.MAX_STACK_SIZE
+        // First apply base growth
+        // for tile in tiles_owned_by_player:
+        //     if not tile.locality:
+        //         continue
+        //     if tile.locality.category == "City":
+        //         if not tile.army:
+        //             tile.army = army.Army(army.BASE_GROWTH_CITY, 1/2 * army.BASE_GROWTH_CITY, tile.owner)
+        //         elif tile.army.manpower < army.MAX_STACK_SIZE:
+        //             tile.army.manpower += army.BASE_GROWTH_CITY
+        //             tile.army.morale += 1/2 * army.BASE_GROWTH_CITY
+        //     elif tile.locality.category == "Capital":
+        //         if not tile.army:
+        //             tile.army = army.Army(army.BASE_GROWTH_CAPITAL, 1/2 * army.BASE_GROWTH_CAPITAL, tile.owner)
+        //         elif tile.army.manpower < army.MAX_TRAVEL_DISTANCE:
+        //             tile.army.manpower += army.BASE_GROWTH_CITY
+        //             tile.army.morale += 1/2 * army.BASE_GROWTH_CITY
+        //     if tile.army:
+        //         if tile.army.manpower > army.MAX_STACK_SIZE:
+        //             tile.army.manpower = army.MAX_STACK_SIZE
+        //         if tile.army.morale > army.MAX_STACK_SIZE:
+        //             tile.army.morale = army.MAX_STACK_SIZE
 
 //         # Then apply bonus growth
 //         player_bonus_growth = len(tiles_owned_by_player) * army.BONUS_GROWTH_PER_TILE
@@ -263,7 +234,6 @@ impl Game { // Game<'_>
 //                 tile.army = None
 //                 tile.owner = player
 
-//     def train_armies(self):
 
 
 //     def can_player_issue_a_command(self, player):

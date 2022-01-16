@@ -1,10 +1,12 @@
 mod cubic;
 mod game;
-mod army;
+mod player;
+mod world;
 
 use cubic::*;
 use game::*;
-use army::*;
+use player::*;
+use world::*;
 use std::collections::HashMap;
 
 fn main() {
@@ -13,7 +15,8 @@ fn main() {
     let player3 = Player::new("Greenland");
     let player4 = Player::new("Violetnam");
     let mut players = vec![player1, player2, player3, player4];
-    let mut world = HashMap::new();
+    let map: HashMap<Cube<i32>, Tile> = HashMap::new();
+    let mut world = World(map);
     // world.insert(Cube::new(0,0), Tile::new("a"));
     // world.insert(Cube::new(1,0), Tile::new("b"));
     // world.insert(Cube::new(0,1), Tile::new("c"));
@@ -38,19 +41,21 @@ fn main() {
 
     let army1 = Army {manpower: 50, morale: 22, owner_index: Some(0), can_move: true};
     let army2 = Army {manpower: 88, morale: 44, owner_index: Some(1), can_move: true};
+    let army3 = Army {manpower: 88, morale: 1, owner_index: Some(2), can_move: true};
 
     let mut army1 = Some(army1);
     let mut army2 = Some(army2);
+    let mut army3 = Some(army3);
 
     world.insert(Cube::new(0,0), Tile {owner_index: Some(0), category: "farmland".to_string(), locality: None, army: army1});
     world.insert(Cube::new(1,0), Tile {owner_index: Some(1), category: "farmland".to_string(), locality: None, army: army2});
-    world.insert(Cube::new(0,-1), Tile {owner_index: None, category: "farmland".to_string(), locality: None, army: None});
+    world.insert(Cube::new(0,-1), Tile {owner_index: Some(2), category: "farmland".to_string(), locality: None, army: army3});
 
     println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
     println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
     println!("(0,-1): {:?}", world.get(&Cube::new(0,-1)));
 
-    army::issue_order(&mut world, &mut players, &Cube::new(1,0), &Cube::new(0,0));
+    world.execute_army_order(&Cube::new(1,0), &Cube::new(0,0));
     // army::issue_order(&mut world, &mut players, &Cube::new(0,0), &Cube::new(0,-1));
 
     println!("(0,0): {:?}", world.get(&Cube::new(0,0)));

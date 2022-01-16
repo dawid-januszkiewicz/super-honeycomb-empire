@@ -1,34 +1,18 @@
-/// The army module describes the logic of the army struct.
-/// The only function it exports for external use is the issue_order()
-/// function, which provides the Player class with a high level logic
-/// for interacting with the game world. Some other modules might also
-/// need to import some of the constants or the army dataclass itself.
+use crate::Cube;
+use crate::Tile;
+use crate::HashMap;
 
-use std::ops::Add;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
 
-use std::collections::HashMap;
-use std::collections::hash_map;
-use std::collections::HashSet;
-
-use std::cmp::min;
 use std::cmp::max;
+use std::cmp::min;
 
-use std::ptr;
-
-use crate::cubic::Cube;
-use crate::Tile;
-use crate::Player;
-
-const MAX_TRAVEL_DISTANCE: i32 = 2;
 const MAX_STACK_SIZE: i32 = 99;
-const BASE_GROWTH_CITY: i32 = 5;
-const BASE_GROWTH_CAPITAL: i32 = 10;
-const BONUS_GROWTH_PER_TILE: i32 = 1;
-
 const MORALE_BONUS_ANNEX_RURAL: i32 = 1;
 const MORALE_BONUS_ANNEX_CITY_ORIGIN: i32 = 20;
 const MORALE_BONUS_ANNEX_CITY_ALL: i32 = 10;
@@ -36,8 +20,6 @@ const MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ORIGIN: i32 = 80;
 const MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ALL: i32 = 50;
 const MORALE_PENALTY_LOSING_CITY: i32 = 10;
 const MORALE_PENALTY_PER_MANPOWER_LOSING_BATTLE: f32 = 0.1;
-const MORALE_PENALTY_IDLE_ARMY: i32 = 1;
-
 
 // Players interact with the game world by issuing commands to tiles containing an army,
 // effectively moving armies across tiles.
@@ -71,11 +53,65 @@ impl Display for Army {
     }
 }
 
+pub struct World(pub HashMap<Cube<i32>, Tile>);
+
+impl Deref for World {
+    type Target = HashMap<Cube<i32>, Tile>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for World {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl World {
+    /// Issues an appropriate order to the origin tile,
+    /// with the target tile as the order target.
+    /// Returns a set of captured coordinates.
+    /// This function is called from within the Player.click_on_tile() method,
+    /// and the order to be issued is determined based on the following conditions:
+    /// move_to() - the target tile has no army and belongs to the origin tile owner.
+    /// capture_tile() - the target tile has no army.
+    /// regroup() - the target tile has an allied army.
+    /// attack() - the target tile has a hostile army.
+    pub fn execute_army_order(&mut self, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
+        let target = self.get(target_cube).unwrap();
+        let origin_owner = self.get(origin_cube).unwrap().owner_index;
+        let target_owner = self.get(target_cube).unwrap().owner_index;
+        // let target_army = self.get(target_cube).unwrap().army.as_ref();
+    
+        let mut extend = true;
+    
+        // one can view move_to() as a special case of regroup(), as with attack() and capture()...
+        match &target.army {
+            Some(army) if target_owner == origin_owner => regroup(self, origin_cube, target_cube),
+            Some(army) => { // attack
+                let losing_player = attack(self, origin_cube, target_cube);
+                if losing_player == origin_owner {
+                    extend = false;
+                }
+            },
+            None if origin_owner == target_owner => move_to(self, origin_cube, target_cube), // own empty
+            None if origin_owner != target_owner => capture_tile(self, origin_cube, target_cube), // else's empty
+            _ => unreachable!(),
+        }
+    
+        if extend {
+            extend_borders(self, origin_cube, target_cube);
+        }
+    }
+}
+
 /// Sets the owner of the nearest neighbours (NN) of the target tile,
 /// to the owner of the origin tile, subject to conditions.
 /// Conditions: The NN tile does not contain any armies or localities,
 /// and does not already belong to origin.owner.
-pub fn extend_borders(world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
+fn extend_borders(world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
     let origin_tile = world.remove(origin_cube).unwrap();
     let neighbours_cube = target_cube.disc(1); // Find the NN of the target cube
 
@@ -95,52 +131,16 @@ pub fn extend_borders(world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i
     }
 
     // Apply the morale bonus
-    for tile in world.values_mut() {
-        if let Some(army) = &mut tile.army {
-            if tile.owner_index == origin_tile.owner_index {
-                army.apply_morale_bonus(morale_bonus);
+    if morale_bonus > 0 {
+        for tile in world.values_mut() {
+            if let Some(army) = &mut tile.army {
+                if tile.owner_index == origin_tile.owner_index {
+                    army.apply_morale_bonus(morale_bonus);
+                }
             }
         }
     }
     world.insert(*origin_cube, origin_tile);
-}
-
-/// Issues an appropriate order to the origin tile,
-/// with the target tile as the order target.
-/// This function is called from within the Player.click_on_tile() method,
-/// and the order to be issued is determined based on the following conditions:
-/// move_to() - the target tile has no army and belongs to the origin tile owner.
-/// capture_tile() - the target tile has no army.
-/// regroup() - the target tile has an allied army.
-/// attack() - the target tile has a hostile army.
-pub fn issue_order(mut world: &mut HashMap<Cube<i32>, Tile>, mut players: &mut Vec<Player>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
-    let target = world.get(target_cube).unwrap();
-    let origin_owner = world.get(origin_cube).unwrap().owner_index;
-    let target_owner = world.get(target_cube).unwrap().owner_index;
-    // let target_army = world.get(target_cube).unwrap().army.as_ref();
-
-    let mut extend = true;
-
-    // one can view move_to() as a special case of regroup(), as with attack() and capture()...
-    match &target.army {
-        Some(army) if target_owner == origin_owner => regroup(&mut world, origin_cube, target_cube),
-        Some(army) => { // attack
-            let losing_player = attack(&mut world, origin_cube, target_cube);
-            if losing_player == origin_owner {
-                extend = false;
-            }
-        },
-        None if origin_owner == target_owner => move_to(&mut world, origin_cube, target_cube), // own empty
-        None if origin_owner != target_owner => capture_tile(&mut world, origin_cube, target_cube), // else's empty
-        _ => unreachable!(),
-    }
-
-    if extend {
-        extend_borders(&mut world, origin_cube, target_cube);
-    }
-
-    let mut origin_tile = world.get_mut(origin_cube).unwrap();
-    origin_tile.owner(&mut players).unwrap().actions -= 1;
 }
 
 // Moves the origin tile army to the target tile.
@@ -291,10 +291,8 @@ fn capture_tile(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32
     for tile in world.values_mut() {
         if tile.army.is_some() {
             if tile.owner_index == origin.owner_index {
-                // tile.army.as_mut().unwrap().morale = origin_owner_morale_bonus(tile);
                 tile.army.as_mut().unwrap().apply_morale_bonus(origin_owner_morale_bonus);
             } else if tile.owner_index == target.owner_index {
-                // tile.army.as_mut().unwrap().morale = target_owner_morale_penalty(tile);
                 if let Some(penalty) = target_owner_morale_penalty {
                     tile.army.as_mut().unwrap().apply_morale_penalty(penalty, minimum_morale_value);
                 }
