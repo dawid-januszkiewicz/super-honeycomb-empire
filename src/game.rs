@@ -1,114 +1,188 @@
 //! Game logic module
 
-// import army
 // import ai
 // import worldgen
 // import playergen
 
 use std::collections::HashMap;
+use std::option::Option;
 
-use super::cubic::*;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result;
 
-
-pub struct Tile<'a> {
-    owner: &'a Player,
-    category: String,
-    // locality: Locality,
-    // army: Army,
-}
-    // def __str__(self):
-    //     if self.locality:
-    //         string = str(self.locality.name)
-    //     else:
-    //         string = str(self.category)
-    //     return string
+use crate::cubic::*;
+use crate::army::Army;
 
 #[derive(Debug)]
+pub struct Locality {
+    name: String,
+    pub category: String, 
+    starting_owner_index: Option<usize>,
+}
+
+impl Locality {
+    fn new(name: &str) -> Self {
+        Locality {
+            name: name.to_string(),
+            category: String::default(),
+            starting_owner_index: None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Tile {
+    pub owner_index: Option<usize>,
+    pub category: String,
+    pub locality: Option<Locality>,
+    pub army: Option<Army>,
+}
+
+impl Tile {
+    pub fn new(category: &str) -> Self {
+        Tile {
+            owner_index: None,
+            category: category.to_string(),
+            locality: None,
+            army: None,
+        }
+    }
+}
+
+impl Tile {
+    pub fn owner<'a>(&self, players: &'a mut Vec<Player>) -> Option<&'a mut Player> {
+        match self.owner_index {
+            Some(index) => Some(&mut players[index]),
+            None => None,
+        }
+    }
+}
+
+impl Display for Tile {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        //     if self.locality:
+        //         string = str(self.locality.name)
+        //     else:
+        //         string = str(self.category)
+        //     return string
+        write!(f, "({})", self.category)
+    }
+}
+
+// impl<'a> FromIterator<&'a Tile> for [&'a Tile; 6] {
+//     fn from_iter<I: IntoIterator<Item=&'a Tile>>(iter: I) -> Self {
+//         let mut arr = [&Tile{owner_index: 0, category: "".to_string(), army: None}; 6];
+
+//         let mut i = 0;
+//         for elem in iter {
+//             arr[i] = elem;
+//             i += 1;
+//         }
+//         // for i in iter {
+//         //     c.add(i);
+//         // }
+
+//         arr
+//     }
+// }
+
 pub struct Player {
     pub name: String,
     pub actions: i32,
+    pub ai: bool,
+    pub selection: Option<Cube<i32>>,
+
+    // self.game = game
+    // self.camera = None
+    // self.actions = ACTIONS_PER_TURN
+    // self.starting_cube = None
+    // self.color = color
+    // self.is_defeated = False
 }
 
-pub struct Game<'a> {
+impl Player {
+    pub fn new(name: &str) -> Player {
+        Player {
+            name: name.to_string(),
+            actions: 5,
+            ai: false,
+            selection: Some(Cube::new(0,0)),
+        }
+    }
+}
+
+impl Display for Player {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "({})", self.name)
+    }
+}
+
+pub struct Game {
     pub turn: i32,
     pub players: Vec<Player>,//[&'a Player<'a>],//Vec<&Player>,
-    pub current_player: &'a Player, // change it to a function?
-    pub world: HashMap<Cube<i32>, Tile<'a>>,
+    //pub current_player: &'a Player, // change it to a function?
+    pub world: HashMap<Cube<i32>, Tile>,
 }
 
-impl Game<'_> {
-    pub fn current_player(&self) -> &Player {
-        let index = (self.turn - 1) % self.players.len() as i32;
-        &self.players[index as usize]
+impl Game { // Game<'_>
+    pub fn current_player_index(&self) -> usize {
+        (self.turn - 1) as usize % self.players.len()
     }
-    // fn next_turn(&self):
-    //     if self.current_player().actions == 0:
-    //         self.current_player().selection = None
-    //         self.current_player().actions = 5
+    pub fn current_player(&mut self) -> &mut Player {
+        let index = self.current_player_index();
+        &mut self.players[index]
+    }
+    fn next_turn(&mut self) {
+        self.current_player().selection = None;
+        self.current_player().actions = 5;
+        self.train_armies();
+        // Reset army movement points
+        self.apply_idle_morale_penalty();
+        for tile in self.world.values_mut() {
+            if let Some(army) = &mut tile.army {
+                army.can_move = true;
+            }
+            // This is eqivalent but w/o pattern matching:
+            // if tile.army.is_some() {
+            //     let army = tile.army.as_mut().unwrap();
+            //     army.can_move = true;
+            //}
+        }
 
-    //         self.train_armies()
-    //         # Reset army movement points
-    //         self.apply_idle_morale_penalty()
-    //         for tile in self.world.values():
-    //             if tile.army:
-    //                 tile.army.can_move = True
+        self.turn += 1;
+        let turn = self.turn;
+        println!("turn: {}, player: {}", turn, self.current_player());
+    }
+    pub fn update_world(&mut self) {
+        if self.players.len() <= 1 {
+            println!("{} wins!", self.current_player());
+        }
 
-    //         self.current_player = next(self.playergen)
-    //         while self.current_player.is_defeated:
-    //             self.current_player = next(self.playergen)
-    //         self.turn += 1
-    //         print('turn:', self.turn, 'player', self.current_player)
+        // Force a player to skip a turn if he has no units to move or no action points left.
+        let can_player_issue_a_command = Game::can_player_issue_a_command(self.current_player_index());
+        if self.current_player().actions == 0 || !can_player_issue_a_command {
+            self.next_turn();
+        }
 
-//         # Force a player to skip a turn if he has no units to move
-//         if not self.can_player_issue_a_command(self.current_player):
-//             self.current_player.actions = 0
-
-//         # Let AI make a move
-//         if self.current_player.ai:
-//             target_generator = ai.generate_targets(self)
-//             for target in target_generator:
-//                 if self.current_player.actions > 0:
-//                     ai.controller(self, target)
-//                 else:
-//                     break
-//             self.current_player.skip_turn()
-
-//         if len(self.players) <= 1:
-//             print(self.current_player, "wins!")
-}
-
-// class Game:
-//     playergen : object
-//         an infinite generator provided by itertools.cycle
-//     """
-//     def __init__(self):
-//         self.turn = 0
-//         self.players = playergen.classic(self)
-//         self.playergen = itertools.cycle(self.players)
-//         self.current_player = self.players[0]
-//         #self.world = worldgen.generate_world(shape='classic', radius=6, algorithm='random_ots', spawntype='classic', players=self.players)
-//         self.world = worldgen.generate_world(shape='hexagon', radius=20, algorithm='random_ots', spawntype='random', players=self.players)
-//         self.initial_layout = worldgen.layout
-//         playergen.create_player_cameras(self)
-
-//     def defeat_player(self, player):
-//         """Removes a player instance from the players list."""
-//         player.is_defeated = True
-//         print(player, "has been defeated!")
-
-//     def surrender_to_player(self, defeated_player, player):
-//         """Transfer the ownership of all of defeated_player tiles to player."""
-//         for tile in self.world.values():
-//             if tile.owner == defeated_player:
-//                 tile.army = None
-//                 tile.owner = player
-
-//     def train_armies(self):
-//         player = self.current_player
-//         tiles_owned_by_player = []
-//         for tile in self.world.values():
-//             if tile.owner == player:
-//                 tiles_owned_by_player.append(tile)
+        // Let AI make a move
+        // if self.current_player().ai {
+        //     target_generator = ai.generate_targets(self)
+        //     for target in target_generator:
+        //         if self.current_player.actions > 0:
+        //             ai.controller(self, target)
+        //         else:
+        //             break
+        //     self.current_player.skip_turn()
+        // }
+    }
+    fn train_armies(&self) {
+        let mut tiles_owned_by_player = vec![];
+        for tile in self.world.values() {
+            if tile.owner_index == Some(self.current_player_index()) {
+                tiles_owned_by_player.push(tile)
+            }
+        }
 
 //         # First apply base growth
 //         for tile in tiles_owned_by_player:
@@ -154,6 +228,43 @@ impl Game<'_> {
 //             if tile.army:
 //                 tile.army.morale = min(army.MAX_STACK_SIZE, tile.army.morale)
 //                 tile.army.morale = round(tile.army.morale)
+    }
+    fn apply_idle_morale_penalty(&self) {
+        todo!();
+    }
+    fn can_player_issue_a_command(player_index: usize) -> bool {
+        todo!();
+    }
+}
+
+// class Game:
+//     playergen : object
+//         an infinite generator provided by itertools.cycle
+//     """
+//     def __init__(self):
+//         self.turn = 0
+//         self.players = playergen.classic(self)
+//         self.playergen = itertools.cycle(self.players)
+//         self.current_player = self.players[0]
+//         #self.world = worldgen.generate_world(shape='classic', radius=6, algorithm='random_ots', spawntype='classic', players=self.players)
+//         self.world = worldgen.generate_world(shape='hexagon', radius=20, algorithm='random_ots', spawntype='random', players=self.players)
+//         self.initial_layout = worldgen.layout
+//         playergen.create_player_cameras(self)
+
+//     def defeat_player(self, player):
+//         """Removes a player instance from the players list."""
+//         player.is_defeated = True
+//         print(player, "has been defeated!")
+
+//     def surrender_to_player(self, defeated_player, player):
+//         """Transfer the ownership of all of defeated_player tiles to player."""
+//         for tile in self.world.values():
+//             if tile.owner == defeated_player:
+//                 tile.army = None
+//                 tile.owner = player
+
+//     def train_armies(self):
+
 
 //     def can_player_issue_a_command(self, player):
 //         own_tiles = []

@@ -2,6 +2,7 @@ extern crate num;
 use num::Signed;
 
 use std::ops::Add;
+use std::ops::AddAssign;
 use std::ops::Sub;
 use std::ops::Mul;
 use std::ops::Div;
@@ -15,18 +16,22 @@ use std::f64::consts::PI;
 // use std::collections::HashSet;
 
 #[derive(Default, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Cube<T>(pub T, pub T);
+pub struct Cube<T>(T, T);
 
 impl<T> Cube<T> where T: Copy + Signed {
-    fn q(&self) -> T {
+    pub fn new(q: T, r: T) -> Self {
+        Self(q,r)
+    }
+
+    pub fn q(&self) -> T {
         self.0
     }
 
-    fn r(&self) -> T {
+    pub fn r(&self) -> T {
         self.1
     }
 
-    fn s(&self) -> T {
+    pub fn s(&self) -> T {
         -self.0 - self.1
     }
 }
@@ -61,6 +66,15 @@ impl<T, U> Add<Cube<U>> for Cube<T> where T: Add<U> {
 
     fn add(self, rhs: Cube<U>) -> Self::Output {
         Cube(self.0 + rhs.0, self.1 + rhs.1)
+    }
+}
+
+impl<T: Copy, U> AddAssign<Cube<U>> for Cube<T> where T: Add<U, Output=T> {
+    fn add_assign(&mut self, other: Cube<U>) {
+        *self = Self (
+            self.0 + other.0,
+            self.1 + other.1,
+        );
     }
 }
 
@@ -131,33 +145,22 @@ impl Cube<i32> {
     // https://gamedev.stackexchange.com/a/51267
     fn ring(&self, n: usize) -> Vec<Cube<i32>> {
         let mut result = vec![Cube(0,0); 6 * n];
-        let distance_to_start = DIRECTIONS[0] * n as i32;
-        // let distance_to_start2 = Cube::<i32>::from(distance_to_start);
-        let start = *self + distance_to_start;
-        let mut counter = 0;
-        for direction in DIRECTIONS {
-            for i in 0..n {
-                result[counter] = start + Cube::<i32>::from(direction);
-                counter += 1;
+        let mut cube = *self + DIRECTIONS[4] * n as i32; // 4 = starting_index (i.e. 0) - 2 
+        for (i, direction) in DIRECTIONS.iter().enumerate() {
+            for j in 0..n {
+                let counter = (i+1) * (j+1) - 1;
+                result[counter] = cube;
+                cube += *direction;
             };
         };
         result
     }
-    fn disc(&self, n: usize) -> Vec<Cube<i32>> {
-        let mut triangular_number = n;
-        for i in 1..n {
-            triangular_number += (n - i);
-        }
-        let size = triangular_number * 6;
-
-        let mut result = vec![Cube(0,0); size];
-        let mut result_index = 0;
+    pub fn disc(&self, n: usize) -> Vec<Cube<i32>> {
+        // note: output vec len is equal to the triangular number of n times 6
+        let mut result = self.ring(0);
         for ring_number in 1..n+1 {
-            let ring = self.ring(ring_number);
-            for item in ring {
-                result[result_index] = item;
-                result_index += 1;
-            }
+            let mut ring = self.ring(ring_number);
+            result.append(&mut ring);
         }
         result
     }
@@ -272,6 +275,15 @@ fn pixel_to_cube(&layout: &Layout, pixel: [f64; 2]) -> Cube<f64> {
     Cube(q, r)
 }
 
+#[allow(dead_code)]
+fn triangular_number(n: i32) -> i32 {
+    let mut triangular_number = n;
+    for i in 1..n {
+        triangular_number += n - i;
+    }
+    triangular_number
+}
+
 fn equal_cube(name: &str, a:Cube<i32>, b:Cube<i32>){
     // assert!(a.q() == b.q() && a.s() == b.s() && a.r() == b.r());
     println!{"{}: {}, a: {:?} b: {:?}", name, a == b, a, b};
@@ -283,8 +295,8 @@ fn test_cube_round() {
     let b = Cube(1.0, -1.0);
     let c = Cube(0.0, -1.0);
     equal_cube("cube_round 1", Cube(5, -10), (Cube(0.0, 0.0).lerp(&Cube(10.0, -20.0), 0.5)).round());
-    equal_cube("cube_round 2", a.round(), (a.lerp(&b, 0.499).round()));
-    equal_cube("cube_round 3", b.round(), (a.lerp(&b, 0.501).round()));
+    equal_cube("cube_round 2", a.round(), a.lerp(&b, 0.499).round());
+    equal_cube("cube_round 3", b.round(), a.lerp(&b, 0.501).round());
     let right1 = Cube(a.q() * 0.4 + b.q() * 0.3 + c.q() * 0.3, a.r() * 0.4 + b.r() * 0.3 + c.r() * 0.3); //, a.s() * 0.4 + b.s() * 0.3 + c.s() * 0.3)).round());
     equal_cube("cube_round 4", a.round(), right1.round());
     let right2 = Cube(a.q() * 0.3 + b.q() * 0.3 + c.q() * 0.4, a.r() * 0.3 + b.r() * 0.3 + c.r() * 0.4); //, a.s() * 0.3 + b.s() * 0.3 + c.s() * 0.4)).round());

@@ -1,44 +1,81 @@
 mod cubic;
 mod game;
+mod army;
 
 use cubic::*;
 use game::*;
+use army::*;
 use std::collections::HashMap;
 
 fn main() {
-    // let c = Cube(1,1);
-    // let c2 = Cube(1,-1);
-    // let c3 = c - c2;
-    // let cf = Cube(0.4, 0.2);
-    // let cffromi = Cube(1,1);
-    let player0 = Player {name: String::from("None"), actions: 0};
-    let player1 = Player {name: String::from("Redosia"), actions: 5};
-    let player2 = Player {name: String::from("Bluegaria"), actions: 5};
-    let player3 = Player {name: String::from("Greenland"), actions: 5};
-    let player4 = Player {name: String::from("Violetnam"), actions: 5};
-    let player5 = Player {name: String::from("Customia"), actions: 5};
+    let player1 = Player::new("Redosia");
+    let player2 = Player::new("Bluegaria");
+    let player3 = Player::new("Greenland");
+    let player4 = Player::new("Violetnam");
+    let mut players = vec![player1, player2, player3, player4];
+    let mut world = HashMap::new();
+    // world.insert(Cube::new(0,0), Tile::new("a"));
+    // world.insert(Cube::new(1,0), Tile::new("b"));
+    // world.insert(Cube::new(0,1), Tile::new("c"));
+    // world.insert(Cube::new(1,1), Tile::new("d"));
+    // world.insert(Cube::new(0,-1), Tile::new("e"));
+    // world.insert(Cube::new(-1,0), Tile::new("f"));
+    // world.insert(Cube::new(-1,-1), Tile::new("g"));
+    // world.insert(Cube::new(-2,-1), Tile::new("h"));
+    // world.insert(Cube::new(-1,-2), Tile::new("i"));
+    // world.insert(Cube::new(-2,-2), Tile::new("j"));
+    // world.insert(Cube::new(-2,0), Tile::new("k"));
+    // world.insert(Cube::new(0,-2), Tile::new("l"));
+    // world.insert(Cube::new(1,2), Tile::new("m"));
+    // world.insert(Cube::new(2,1), Tile::new("n"));
+    // world.insert(Cube::new(2,0), Tile::new("o"));
+    // world.insert(Cube::new(0,2), Tile::new("p"));
+    // world.insert(Cube::new(1,-1), Tile::new("r"));
+    // world.insert(Cube::new(-1,1), Tile::new("s"));
+    // world.insert(Cube::new(2,-2), Tile::new("t"));
+    // world.insert(Cube::new(2,-1), Tile::new("u"));
+    // world.insert(Cube::new(1,-2), Tile::new("v"));
 
-    let players = vec![player1, player2, player3, player4, player5];
-    let world = HashMap::new();
+    let army1 = Army {manpower: 50, morale: 22, owner_index: Some(0), can_move: true};
+    let army2 = Army {manpower: 88, morale: 44, owner_index: Some(1), can_move: true};
+
+    let mut army1 = Some(army1);
+    let mut army2 = Some(army2);
+
+    world.insert(Cube::new(0,0), Tile {owner_index: Some(0), category: "farmland".to_string(), locality: None, army: army1});
+    world.insert(Cube::new(1,0), Tile {owner_index: Some(1), category: "farmland".to_string(), locality: None, army: army2});
+    world.insert(Cube::new(0,-1), Tile {owner_index: None, category: "farmland".to_string(), locality: None, army: None});
+
+    println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
+    println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
+    println!("(0,-1): {:?}", world.get(&Cube::new(0,-1)));
+
+    army::issue_order(&mut world, &mut players, &Cube::new(1,0), &Cube::new(0,0));
+    // army::issue_order(&mut world, &mut players, &Cube::new(0,0), &Cube::new(0,-1));
+
+    println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
+    println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
+    println!("(0,-1): {:?}", world.get(&Cube::new(0,-1)));
 
     let mut game = Game {
         turn: 1,
         players: players,
-        current_player: &player0,
         world: world
     };
 
-    println!("{:?}", game.current_player());
-    game.turn += 1;
-    println!("{:?}", game.current_player());
-    game.turn += 1;
-    println!("{:?}", game.current_player());
-    game.turn += 1;
-    println!("{:?}", game.current_player());
-    game.turn += 1;
-    println!("{:?}", game.current_player());
-    game.turn += 1;
-    println!("{:?}", game.current_player());
+    // println!("{}", game.current_player());
+    // game.turn += 1;
+    // println!("{}", game.current_player());
+    // game.turn += 1;
+    // println!("{}", game.current_player());
+    // game.turn += 1;
+    // println!("{}", game.current_player());
+    // game.turn += 1;
+    // println!("{}", game.current_player());
+    // game.turn += 1;
+    // println!("{}", game.current_player());
+
+    // army::extend_borders(&mut game.world, Tile::new("farmland"), Cube::new(0,0));
 
     // println!("{:?}", cf.round());
 
