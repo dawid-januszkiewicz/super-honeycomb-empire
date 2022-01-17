@@ -154,8 +154,11 @@ impl Game { // Game<'_>
         // }
     }
     fn train_armies(&mut self) {
+        let current_player_index = self.current_player_index();
+        let cubes_of_current_player = self.world.cubes_by_ownership.get(&current_player_index).unwrap().clone();
+
         // First apply base growth
-        for cube in &self.current_player().cubes_owned.clone() {
+        for cube in &cubes_of_current_player {
             let mut tile = self.world.get_mut(&cube).unwrap();
             let mut growth = 0;
             match &tile.locality {
@@ -181,11 +184,11 @@ impl Game { // Game<'_>
         }
 
         // Then apply bonus growth
-        let mut bonus_growth = self.current_player().cubes_owned.len() as i32 * BONUS_GROWTH_PER_TILE;
+        let mut bonus_growth = cubes_of_current_player.len() as i32 * BONUS_GROWTH_PER_TILE;
         let mut tiles_with_max_army_stack = HashSet::new();
-        for cube in self.current_player().cubes_owned.clone().iter().cycle() {
+        for cube in cubes_of_current_player.iter().cycle() {
             // break if we can't apply the bonus anywhere
-            if self.current_player().cubes_owned.difference(&tiles_with_max_army_stack).collect::<HashSet<_>>().len() == 0 || bonus_growth <= 0 {
+            if cubes_of_current_player.difference(&tiles_with_max_army_stack).collect::<HashSet<_>>().len() == 0 || bonus_growth <= 0 {
                 break;
             }
             let tile = self.world.get_mut(&cube).unwrap();

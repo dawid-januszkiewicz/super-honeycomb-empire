@@ -30,7 +30,6 @@ pub struct Player {
     pub actions: i32,
     pub ai: bool,
     pub selection: Option<Cube<i32>>,
-    pub cubes_owned: HashSet<Cube<i32>>,
 
     // self.camera = None
     // self.starting_cube = None
@@ -45,15 +44,15 @@ impl Player {
             actions: ACTIONS_PER_TURN,
             ai: false,
             selection: Some(Cube::new(0,0)),
-            cubes_owned: HashSet::new(),
         }
     }
     fn player_index(&self, world: &World) -> Option<usize> {
-        for cube in self.cubes_owned.iter() {
-            let first_tile = world.get(cube).unwrap();
-            return first_tile.owner_index;
-        }
-        None
+        todo!()
+        // for cube in self.cubes_owned.iter() {
+        //     let first_tile = world.get(cube).unwrap();
+        //     return first_tile.owner_index;
+        // }
+        // None
     }
     // Clicking on a tile with an army selects it. If the player
     // already has a selection, it will issue a command with the
@@ -79,7 +78,7 @@ impl Player {
         if let Some(selection) = &mut self.selection {
             let legal_moves = world.get_reachable_cubes(&selection);
             if legal_moves.contains(target_cube) {
-                world.execute_army_order(&selection, &target_cube, &mut self.cubes_owned);
+                world.execute_army_order(&selection, &target_cube);
                 self.actions -= 1;
                 // self.game.check_victory_condition() // call outside
                 self.selection = None; // deselect

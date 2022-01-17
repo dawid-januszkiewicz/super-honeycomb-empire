@@ -133,7 +133,7 @@ impl World {
     /// capture_tile() - the target tile has no army.
     /// regroup() - the target tile has an allied army.
     /// attack() - the target tile has a hostile army.
-    pub fn execute_army_order(&mut self, origin_cube: &Cube<i32>, target_cube: &Cube<i32>, mut ref_to_cubes_owned: &mut HashSet<Cube<i32>>) {
+    pub fn execute_army_order(&mut self, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
         let target = self.get(target_cube).unwrap();
         let origin_owner = self.get(origin_cube).unwrap().owner_index;
         let target_owner = self.get(target_cube).unwrap().owner_index;
@@ -145,18 +145,18 @@ impl World {
         match &target.army {
             Some(army) if target_owner == origin_owner => regroup(self, origin_cube, target_cube),
             Some(army) => { // attack
-                let losing_player = attack(self, origin_cube, target_cube, ref_to_cubes_owned);
+                let losing_player = attack(self, origin_cube, target_cube);
                 if losing_player == origin_owner {
                     extend = false;
                 }
             },
             None if origin_owner == target_owner => move_to(self, origin_cube, target_cube), // own empty
-            None if origin_owner != target_owner => capture_tile(self, origin_cube, target_cube, ref_to_cubes_owned), // else's empty
+            None if origin_owner != target_owner => capture_tile(self, origin_cube, target_cube), // else's empty
             _ => unreachable!(),
         }
     
         if extend {
-            extend_borders(self, origin_cube, target_cube);
+            extend_borders(self, target_cube);
         }
     }
 
@@ -202,40 +202,21 @@ impl World {
 /// to the owner of the origin tile, subject to conditions.
 /// Conditions: The NN tile does not contain any armies or localities,
 /// and does not already belong to origin.owner.
-fn extend_borders(world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
-    let origin_tile = world.remove(origin_cube).unwrap();
+fn extend_borders(mut world: &mut World, target_cube: &Cube<i32>) {
+    // Origin has now captured the target and so is irrelevant
+    let target_owner_index = world.get(&target_cube).unwrap().owner_index;
     let neighbours_cube = target_cube.disc(1); // Find the NN of the target cube
-
-    // let neighbours_tile: Vec<_> = neighbours_cube.iter().filter_map(|x| world.get_mut(x)).collect(); // doesn't work
-    // let mut world_mut = world.iter_mut().collect::<HashMap<_, _>>();
-    // let neighbours_tile: Vec<_> = neighbours_cube.iter().filter_map(|x| world_mut.remove(x)).collect();
-
-    // Check the conditions and if satisfied, change the ownership
-    let mut morale_bonus = 0;
     for cube in neighbours_cube {
-        if let Some(tile) = world.get_mut(&cube) {
-            if tile.army.is_none() && tile.locality.is_none() && tile.owner_index != origin_tile.owner_index {
-                tile.owner_index = origin_tile.owner_index;
-                morale_bonus += 1;
+        if let Some(tile) = world.get(&cube) {
+            if tile.army.is_none() && tile.locality.is_none() && tile.owner_index != target_owner_index {
+                capture_tile(&mut world, &target_cube, &cube);
             }
         }
     }
-
-    // Apply the morale bonus
-    if morale_bonus > 0 {
-        for tile in world.values_mut() {
-            if let Some(army) = &mut tile.army {
-                if tile.owner_index == origin_tile.owner_index {
-                    army.apply_morale_bonus(morale_bonus);
-                }
-            }
-        }
-    }
-    world.insert(*origin_cube, origin_tile);
 }
 
 // Moves the origin tile army to the target tile.
-fn move_to(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
+fn move_to(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
     let mut origin = world.remove(origin_cube).unwrap();
     let mut target = world.get_mut(target_cube).unwrap();
     target.army = origin.army;
@@ -245,7 +226,7 @@ fn move_to(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, ta
 }
 
 // Combines the origin tile army with an allied target tile army.
-fn regroup(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
+fn regroup(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
     let mut origin = world.remove(origin_cube).unwrap();
     let mut target = world.get_mut(target_cube).unwrap();
     let mut origin_army = origin.army.as_mut().unwrap();
@@ -270,7 +251,7 @@ fn regroup(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, ta
 }
 
 /// Attacks the target tile from the origin tile.
-fn attack(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>, mut ref_to_cubes_owned: &mut HashSet<Cube<i32>>) -> Option<usize> {
+fn attack(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) -> Option<usize> {
     let mut origin = world.remove(origin_cube).unwrap();
     let mut target = world.remove(target_cube).unwrap();
 
@@ -306,7 +287,7 @@ fn attack(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, tar
 
     world.insert(*origin_cube, origin);
     world.insert(*target_cube, target);
-    if diff > 0 {capture_tile(&mut world, origin_cube, target_cube, ref_to_cubes_owned);}
+    if diff > 0 {capture_tile(&mut world, origin_cube, target_cube);}
     apply_morale_penalty_losing_combat(&mut world, losing_player.unwrap(), manpower_lost);
     losing_player
 }
@@ -314,7 +295,7 @@ fn attack(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, tar
 /// Calculates the minimum morale value an army can have.
 /// If you use this function you have to remember to still account for the fact
 /// that an army's morale shouldn't exceed its manpower.
-fn calculate_minimum_morale(world: &HashMap<Cube<i32>, Tile>, player_index: usize) -> i32 {
+fn calculate_minimum_morale(world: &World, player_index: usize) -> i32 {
     let mut total_manpower = 0;
     for tile in world.values() {
         if tile.owner_index == Some(player_index) {
@@ -327,7 +308,7 @@ fn calculate_minimum_morale(world: &HashMap<Cube<i32>, Tile>, player_index: usiz
 }
 
 /// Calculates and applies the morale penalty to every army of the losing player.
-fn apply_morale_penalty_losing_combat(mut world: &mut HashMap<Cube<i32>, Tile>, losing_player_index: usize, manpower_lost: i32) {
+fn apply_morale_penalty_losing_combat(mut world: &mut World, losing_player_index: usize, manpower_lost: i32) {
     let penalty = (MORALE_PENALTY_PER_MANPOWER_LOSING_BATTLE * manpower_lost as f32) as i32; // implicit floor
     let minimum_morale_value = calculate_minimum_morale(&world, losing_player_index);
     println!("Player {:?} suffers {} morale penalty", losing_player_index, penalty);
@@ -342,7 +323,7 @@ fn apply_morale_penalty_losing_combat(mut world: &mut HashMap<Cube<i32>, Tile>, 
 
 /// Change the owner of the target tile to that of the origin tile,
 /// and apply appropriate morale modifiers to the owners of those tiles.
-fn capture_tile(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>, mut ref_to_cubes_owned: &mut HashSet<Cube<i32>>) {
+fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
 // fn capture_tile(mut game_world_tiles: &mut hash_map::ValuesMut<Cube<i32>, Tile>, mut origin: &mut Tile, mut target: &mut Tile) {
     let mut origin = world.remove(origin_cube).unwrap();
     let mut target = world.remove(target_cube).unwrap();
@@ -393,7 +374,6 @@ fn capture_tile(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32
     
     // Actually capture the tile
     target.owner_index = origin.owner_index;
-    ref_to_cubes_owned.insert(*target_cube);
     world.insert(*origin_cube, origin);
     world.insert(*target_cube, target);
     move_to(&mut world, origin_cube, target_cube);
