@@ -19,14 +19,11 @@ use std::cmp::max;
 
 use std::ptr;
 
+use crate::World;
 use crate::cubic::Cube;
 use crate::Tile;
 
-const MAX_TRAVEL_DISTANCE: i32 = 2;
-const BASE_GROWTH_CITY: i32 = 5;
-const BASE_GROWTH_CAPITAL: i32 = 10;
-const BONUS_GROWTH_PER_TILE: i32 = 1;
-const MORALE_PENALTY_IDLE_ARMY: i32 = 1;
+const ACTIONS_PER_TURN: i32 = 5;
 
 pub struct Player {
     pub name: String,
@@ -35,23 +32,28 @@ pub struct Player {
     pub selection: Option<Cube<i32>>,
     pub cubes_owned: HashSet<Cube<i32>>,
 
-    // self.game = game
     // self.camera = None
-    // self.actions = ACTIONS_PER_TURN
     // self.starting_cube = None
     // self.color = color
     // self.is_defeated = False
 }
 
 impl Player {
-    pub fn new(name: &str) -> Player {
+    pub fn new(name: &str) -> Self {
         Player {
             name: name.to_string(),
-            actions: 5,
+            actions: ACTIONS_PER_TURN,
             ai: false,
             selection: Some(Cube::new(0,0)),
             cubes_owned: HashSet::new(),
         }
+    }
+    fn player_index(&self, world: &World) -> Option<usize> {
+        for cube in self.cubes_owned.iter() {
+            let first_tile = world.get(cube).unwrap();
+            return first_tile.owner_index;
+        }
+        None
     }
     // Clicking on a tile with an army selects it. If the player
     // already has a selection, it will issue a command with the
@@ -59,27 +61,35 @@ impl Player {
     // be issued, and the clicked tile has an army, it will be
     // selected. If it does not, the player's selection will be set
     // to None. Clicking on the selected tile deselects it.
-    fn click(&mut self, mut world: &mut HashMap<Cube<i32>, Tile>, target_cube: &Cube<i32>) {
+    fn click(&mut self, mut world: &mut World, target_cube: &Cube<i32>) {
         let target = world.get(target_cube).unwrap();
         // let is_target_selectable = if let Some(army) = &target.army {
-        //     && clicked_tile.owner == self.game.current_player
-        //     && target.army.can_move
+        //     && target.owner_index == self.player_index(&world)
+        //     && army.can_move
         //     && Some(target_cube) != self.selection
         // };
-        // if let Some(selection) = &mut self.selection {
-        //     let legal_moves = cubic.get_reachable_cubes(self.game.world, self.selection[0], player.MAX_TRAVEL_DISTANCE);
-        //     if target_cube in legal_moves {
-        //         issue_order(self.game.world, &self.selection, &target_cube)
-        //         self.actions -= 1;
-        //         self.game.check_victory_condition()
-        //         self.selection = None // deselect
-        //     }
-        //     None => {}
-        // if is_target_selectable {
-        //     self.selection = target_cube;
-        // } else {
-        //     self.selection = None;
-        // }
+        let mut is_target_selectable = false;
+        if let Some(army) = &target.army {
+            if target.owner_index == self.player_index(&world)
+            && army.can_move
+            && Some(*target_cube) != self.selection {
+                is_target_selectable = true;
+            }
+        };
+        if let Some(selection) = &mut self.selection {
+            let legal_moves = world.get_reachable_cubes(&selection);
+            if legal_moves.contains(target_cube) {
+                world.execute_army_order(&selection, &target_cube, &mut self.cubes_owned);
+                self.actions -= 1;
+                // self.game.check_victory_condition() // call outside
+                self.selection = None; // deselect
+            }
+        }
+        if is_target_selectable {
+            self.selection = Some(*target_cube);
+        } else {
+            self.selection = None;
+        }
     }
 }
 

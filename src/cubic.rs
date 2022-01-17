@@ -177,7 +177,7 @@ impl<T> Cube<T> where T: Copy + Signed + Div<i32, Output=T> { // , Cube<T>: From
 }
 
 // pretend it's a 2x3 matrix
-const DIRECTIONS: [Cube<i32>; 6] = [
+pub const DIRECTIONS: [Cube<i32>; 6] = [
     Cube(1, -1), Cube(1, 0), Cube(0, 1),
     Cube(-1, 1), Cube(-1, 0), Cube(0, -1),
 ];

@@ -1,6 +1,9 @@
 use crate::Cube;
 use crate::Tile;
-use crate::HashMap;
+use crate::DIRECTIONS;
+
+use std::collections::HashSet;
+use std::collections::HashMap;
 
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -12,7 +15,8 @@ use std::fmt::Result;
 use std::cmp::max;
 use std::cmp::min;
 
-const MAX_STACK_SIZE: i32 = 99;
+const MAX_TRAVEL_DISTANCE: i32 = 2;
+pub const MAX_STACK_SIZE: i32 = 99;
 const MORALE_BONUS_ANNEX_RURAL: i32 = 1;
 const MORALE_BONUS_ANNEX_CITY_ORIGIN: i32 = 20;
 const MORALE_BONUS_ANNEX_CITY_ALL: i32 = 10;
@@ -32,6 +36,25 @@ pub struct Army {
 }
 
 impl Army {
+    pub fn new(manpower: i32, owner_index: Option<usize>) -> Self {
+        Army {
+            manpower,
+            morale: (manpower as f32 / 2.).round() as i32,
+            owner_index,
+            can_move: true,
+        }
+    }
+    // Grow the army up to MAX_STACK_SIZE, and return any growth overflow.
+    pub fn grow(&mut self, manpower: i32) -> i32 {
+        let new_manpower = self.manpower + manpower;
+        self.manpower = min(MAX_STACK_SIZE, new_manpower);
+        self.morale = min(MAX_STACK_SIZE, self.morale + (manpower as f32 /2.).round() as i32); // I think this will be buggy, as morale will continue to grow each turn in proportion to no of tiles owned.
+        if new_manpower > MAX_STACK_SIZE {
+            new_manpower - MAX_STACK_SIZE
+        } else {
+            0
+        }
+    }
     // fn update_morale() ?
     fn apply_morale_bonus(&mut self, bonus: i32) {
         assert!(bonus > 0);
@@ -53,23 +76,54 @@ impl Display for Army {
     }
 }
 
-pub struct World(pub HashMap<Cube<i32>, Tile>);
+// pub struct World(pub HashMap<Cube<i32>, Tile>);
+
+#[derive(Debug)]
+pub struct World {
+    pub world: HashMap<Cube<i32>, Tile>,
+    pub cubes_by_ownership: HashMap<usize, HashSet<Cube<i32>>>,
+}
+
 
 impl Deref for World {
     type Target = HashMap<Cube<i32>, Tile>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.world
     }
 }
 
 impl DerefMut for World {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.world
     }
 }
 
 impl World {
+    pub fn new() -> Self {
+        World {
+            world: HashMap::new(),
+            cubes_by_ownership: HashMap::new(),
+        }
+    }
+    pub fn insert(&mut self, key: Cube<i32>, value: Tile) {
+        // let Some((key, value)) = self.world.get_key_value(&key);
+        if let Some(index) = value.owner_index {
+            let set = self.cubes_by_ownership.entry(index).or_insert(HashSet::new());
+            set.insert(key);
+        }
+        self.world.insert(key, value);
+    }
+    pub fn remove(&mut self, k: &Cube<i32>) -> Option<Tile> {
+        let value = self.world.remove(k);
+        if value.is_some() {
+            if let Some(index) = value.as_ref().unwrap().owner_index {
+                let set = self.cubes_by_ownership.get_mut(&index).unwrap();
+                set.remove(k);
+            } 
+        }
+        value
+    }
     /// Issues an appropriate order to the origin tile,
     /// with the target tile as the order target.
     /// Returns a set of captured coordinates.
@@ -79,7 +133,7 @@ impl World {
     /// capture_tile() - the target tile has no army.
     /// regroup() - the target tile has an allied army.
     /// attack() - the target tile has a hostile army.
-    pub fn execute_army_order(&mut self, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
+    pub fn execute_army_order(&mut self, origin_cube: &Cube<i32>, target_cube: &Cube<i32>, mut ref_to_cubes_owned: &mut HashSet<Cube<i32>>) {
         let target = self.get(target_cube).unwrap();
         let origin_owner = self.get(origin_cube).unwrap().owner_index;
         let target_owner = self.get(target_cube).unwrap().owner_index;
@@ -91,19 +145,56 @@ impl World {
         match &target.army {
             Some(army) if target_owner == origin_owner => regroup(self, origin_cube, target_cube),
             Some(army) => { // attack
-                let losing_player = attack(self, origin_cube, target_cube);
+                let losing_player = attack(self, origin_cube, target_cube, ref_to_cubes_owned);
                 if losing_player == origin_owner {
                     extend = false;
                 }
             },
             None if origin_owner == target_owner => move_to(self, origin_cube, target_cube), // own empty
-            None if origin_owner != target_owner => capture_tile(self, origin_cube, target_cube), // else's empty
+            None if origin_owner != target_owner => capture_tile(self, origin_cube, target_cube, ref_to_cubes_owned), // else's empty
             _ => unreachable!(),
         }
     
         if extend {
             extend_borders(self, origin_cube, target_cube);
         }
+    }
+
+    fn is_cube_passable(&self, cube: &Cube<i32>) -> bool {
+        match self.get(cube) {
+            Some(tile) => (tile.army.is_none() || tile.locality.is_none()),
+            None => false,
+        }
+    }
+
+    pub fn get_reachable_cubes(&self, start_cube: &Cube<i32>) -> HashSet<Cube<i32>> {
+        let mut visited = HashSet::new();
+        visited.insert(*start_cube);
+        let mut fringes = vec!(); // vec of vecs of cubes
+        //fringes.push(&vec!(start_cube));
+        fringes.push(*start_cube);
+        
+        for _ in 0..(MAX_TRAVEL_DISTANCE as usize) {
+            //fringes.push(&vec!());
+            let mut next_fringes = vec!();
+            for cube in fringes {
+                for direction in DIRECTIONS {
+                    let neighbour = cube + direction;
+                    if !visited.contains(&neighbour) {
+                        // This way we also add obstacles themselves, if they exist
+                        if self.get(&neighbour).is_some() {
+                            visited.insert(neighbour);
+                        }
+                        if self.is_cube_passable(&neighbour) {
+                            next_fringes.push(neighbour);
+                        }
+                    }
+                }
+            }
+            fringes = next_fringes;
+        }
+        visited.remove(start_cube);
+        visited
     }
 }
 
@@ -179,7 +270,7 @@ fn regroup(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, ta
 }
 
 /// Attacks the target tile from the origin tile.
-fn attack(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) -> Option<usize> {
+fn attack(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>, mut ref_to_cubes_owned: &mut HashSet<Cube<i32>>) -> Option<usize> {
     let mut origin = world.remove(origin_cube).unwrap();
     let mut target = world.remove(target_cube).unwrap();
 
@@ -215,7 +306,7 @@ fn attack(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, tar
 
     world.insert(*origin_cube, origin);
     world.insert(*target_cube, target);
-    if diff > 0 {capture_tile(&mut world, origin_cube, target_cube);}
+    if diff > 0 {capture_tile(&mut world, origin_cube, target_cube, ref_to_cubes_owned);}
     apply_morale_penalty_losing_combat(&mut world, losing_player.unwrap(), manpower_lost);
     losing_player
 }
@@ -251,7 +342,7 @@ fn apply_morale_penalty_losing_combat(mut world: &mut HashMap<Cube<i32>, Tile>, 
 
 /// Change the owner of the target tile to that of the origin tile,
 /// and apply appropriate morale modifiers to the owners of those tiles.
-fn capture_tile(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
+fn capture_tile(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32>, target_cube: &Cube<i32>, mut ref_to_cubes_owned: &mut HashSet<Cube<i32>>) {
 // fn capture_tile(mut game_world_tiles: &mut hash_map::ValuesMut<Cube<i32>, Tile>, mut origin: &mut Tile, mut target: &mut Tile) {
     let mut origin = world.remove(origin_cube).unwrap();
     let mut target = world.remove(target_cube).unwrap();
@@ -302,6 +393,7 @@ fn capture_tile(mut world: &mut HashMap<Cube<i32>, Tile>, origin_cube: &Cube<i32
     
     // Actually capture the tile
     target.owner_index = origin.owner_index;
+    ref_to_cubes_owned.insert(*target_cube);
     world.insert(*origin_cube, origin);
     world.insert(*target_cube, target);
     move_to(&mut world, origin_cube, target_cube);

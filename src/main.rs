@@ -10,13 +10,12 @@ use world::*;
 use std::collections::HashMap;
 
 fn main() {
-    let player1 = Player::new("Redosia");
+    let mut player1 = Player::new("Redosia");
     let player2 = Player::new("Bluegaria");
     let player3 = Player::new("Greenland");
     let player4 = Player::new("Violetnam");
     let mut players = vec![player1, player2, player3, player4];
-    let map: HashMap<Cube<i32>, Tile> = HashMap::new();
-    let mut world = World(map);
+    let mut world = World::new();
     // world.insert(Cube::new(0,0), Tile::new("a"));
     // world.insert(Cube::new(1,0), Tile::new("b"));
     // world.insert(Cube::new(0,1), Tile::new("c"));
@@ -51,16 +50,19 @@ fn main() {
     world.insert(Cube::new(1,0), Tile {owner_index: Some(1), category: "farmland".to_string(), locality: None, army: army2});
     world.insert(Cube::new(0,-1), Tile {owner_index: Some(2), category: "farmland".to_string(), locality: None, army: army3});
 
-    println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
-    println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
-    println!("(0,-1): {:?}", world.get(&Cube::new(0,-1)));
+    // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
+    // println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
+    // println!("(0,-1): {:?}", world.get(&Cube::new(0,-1)));
+    println!("{:?}", world.cubes_by_ownership);
 
-    world.execute_army_order(&Cube::new(1,0), &Cube::new(0,0));
+    world.execute_army_order(&Cube::new(1,0), &Cube::new(0,0), &mut players[0].cubes_owned);
     // army::issue_order(&mut world, &mut players, &Cube::new(0,0), &Cube::new(0,-1));
 
-    println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
-    println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
-    println!("(0,-1): {:?}", world.get(&Cube::new(0,-1)));
+    // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
+    // println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
+    // println!("(0,-1): {:?}", world.get(&Cube::new(0,-1)));
+
+    println!("{:?}", world.cubes_by_ownership);
 
     let mut game = Game {
         turn: 1,

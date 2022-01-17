@@ -5,6 +5,7 @@
 // import playergen
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::option::Option;
 
 use std::fmt::Display;
@@ -15,6 +16,12 @@ use crate::cubic::*;
 use crate::Army;
 use crate::player::Player;
 use crate::World;
+use crate::world::MAX_STACK_SIZE;
+
+const BASE_GROWTH_CITY: i32 = 5;
+const BASE_GROWTH_CAPITAL: i32 = 10;
+const BONUS_GROWTH_PER_TILE: i32 = 1;
+const MORALE_PENALTY_IDLE_ARMY: i32 = 1;
 
 #[derive(Debug)]
 pub struct Locality {
@@ -100,30 +107,29 @@ impl Game { // Game<'_>
     pub fn current_player_index(&self) -> usize {
         (self.turn - 1) as usize % self.players.len()
     }
-    pub fn current_player(&mut self) -> &mut Player {
+    pub fn current_player_mut(&mut self) -> &mut Player {
         let index = self.current_player_index();
         &mut self.players[index]
     }
+    pub fn current_player(&self) -> &Player {
+        let index = self.current_player_index();
+        &self.players[index]
+    }
     fn next_turn(&mut self) {
-        self.current_player().selection = None;
-        self.current_player().actions = 5;
+        self.current_player_mut().selection = None;
+        self.current_player_mut().actions = 5;
         self.train_armies();
+
         // Reset army movement points
         self.apply_idle_morale_penalty();
         for tile in self.world.values_mut() {
             if let Some(army) = &mut tile.army {
                 army.can_move = true;
             }
-            // This is eqivalent but w/o pattern matching:
-            // if tile.army.is_some() {
-            //     let army = tile.army.as_mut().unwrap();
-            //     army.can_move = true;
-            //}
         }
 
         self.turn += 1;
-        let turn = self.turn;
-        println!("turn: {}, player: {}", turn, self.current_player());
+        println!("turn: {}, player: {}", self.turn, self.current_player());
     }
     pub fn update_world(&mut self) {
         if self.players.len() <= 1 {
@@ -147,58 +153,53 @@ impl Game { // Game<'_>
         //     self.current_player.skip_turn()
         // }
     }
-    fn train_armies(&self) {
-        let mut tiles_owned_by_player = vec![];
-        for tile in self.world.values() {
-            if tile.owner_index == Some(self.current_player_index()) {
-                tiles_owned_by_player.push(tile)
+    fn train_armies(&mut self) {
+        // First apply base growth
+        for cube in &self.current_player().cubes_owned.clone() {
+            let mut tile = self.world.get_mut(&cube).unwrap();
+            let mut growth = 0;
+            match &tile.locality {
+                None => {continue},
+                Some(locality) if locality.category == "City" => {
+                    growth = BASE_GROWTH_CITY;
+                },
+                Some(locality) if locality.category == "Capital" => {
+                    growth = BASE_GROWTH_CAPITAL;
+                },
+                _ => {continue},
+            }
+            if growth > 0 { // redundant?
+                match &mut tile.army {
+                    Some(army) => {
+                        army.grow(growth);
+                    }
+                    None => {
+                        tile.army = Some(Army::new(growth, tile.owner_index));
+                    }
+                }
             }
         }
 
-        // First apply base growth
-        // for tile in tiles_owned_by_player:
-        //     if not tile.locality:
-        //         continue
-        //     if tile.locality.category == "City":
-        //         if not tile.army:
-        //             tile.army = army.Army(army.BASE_GROWTH_CITY, 1/2 * army.BASE_GROWTH_CITY, tile.owner)
-        //         elif tile.army.manpower < army.MAX_STACK_SIZE:
-        //             tile.army.manpower += army.BASE_GROWTH_CITY
-        //             tile.army.morale += 1/2 * army.BASE_GROWTH_CITY
-        //     elif tile.locality.category == "Capital":
-        //         if not tile.army:
-        //             tile.army = army.Army(army.BASE_GROWTH_CAPITAL, 1/2 * army.BASE_GROWTH_CAPITAL, tile.owner)
-        //         elif tile.army.manpower < army.MAX_TRAVEL_DISTANCE:
-        //             tile.army.manpower += army.BASE_GROWTH_CITY
-        //             tile.army.morale += 1/2 * army.BASE_GROWTH_CITY
-        //     if tile.army:
-        //         if tile.army.manpower > army.MAX_STACK_SIZE:
-        //             tile.army.manpower = army.MAX_STACK_SIZE
-        //         if tile.army.morale > army.MAX_STACK_SIZE:
-        //             tile.army.morale = army.MAX_STACK_SIZE
-
-//         # Then apply bonus growth
-//         player_bonus_growth = len(tiles_owned_by_player) * army.BONUS_GROWTH_PER_TILE
-//         while player_bonus_growth > 0:
-//             tiles_with_max_army_stack = 0
-//             for tile in tiles_owned_by_player:
-//                 if tile.locality and tile.army.manpower < army.MAX_STACK_SIZE:
-//                     tile.army.manpower += 1
-//                     tile.army.morale += 0.5
-//                     player_bonus_growth -= 1
-//                 else:
-//                     tiles_with_max_army_stack += 1
-
-//                 # break if we can't apply the bonus anywhere
-//                 if len(tiles_owned_by_player) == tiles_with_max_army_stack:
-//                     player_bonus_growth = 0
-//                     break
-
-//         # Round morale values
-//         for tile in self.world.values():
-//             if tile.army:
-//                 tile.army.morale = min(army.MAX_STACK_SIZE, tile.army.morale)
-//                 tile.army.morale = round(tile.army.morale)
+        // Then apply bonus growth
+        let mut bonus_growth = self.current_player().cubes_owned.len() as i32 * BONUS_GROWTH_PER_TILE;
+        let mut tiles_with_max_army_stack = HashSet::new();
+        for cube in self.current_player().cubes_owned.clone().iter().cycle() {
+            // break if we can't apply the bonus anywhere
+            if self.current_player().cubes_owned.difference(&tiles_with_max_army_stack).collect::<HashSet<_>>().len() == 0 || bonus_growth <= 0 {
+                break;
+            }
+            let tile = self.world.get_mut(&cube).unwrap();
+            match &tile.locality {
+                Some(locality) => match &mut tile.army {
+                    Some(army) if army.manpower < MAX_STACK_SIZE => {
+                        let overflow = army.grow(2); // ideally 1, but here 2 so we grow morale by a whole number.
+                        bonus_growth -= overflow;
+                    }
+                    _ => {tiles_with_max_army_stack.insert(*cube);}
+                }
+                None => {tiles_with_max_army_stack.insert(*cube);}
+            }
+        }
     }
     fn apply_idle_morale_penalty(&self) {
         todo!();
