@@ -46,50 +46,13 @@ impl Player {
             selection: Some(Cube::new(0,0)),
         }
     }
-    fn player_index(&self, world: &World) -> Option<usize> {
-        todo!()
-        // for cube in self.cubes_owned.iter() {
-        //     let first_tile = world.get(cube).unwrap();
-        //     return first_tile.owner_index;
-        // }
-        // None
-    }
-    // Clicking on a tile with an army selects it. If the player
-    // already has a selection, it will issue a command with the
-    // clicked tile as the target of the command. If no command can
-    // be issued, and the clicked tile has an army, it will be
-    // selected. If it does not, the player's selection will be set
-    // to None. Clicking on the selected tile deselects it.
-    fn click(&mut self, mut world: &mut World, target_cube: &Cube<i32>) {
-        let target = world.get(target_cube).unwrap();
-        // let is_target_selectable = if let Some(army) = &target.army {
-        //     && target.owner_index == self.player_index(&world)
-        //     && army.can_move
-        //     && Some(target_cube) != self.selection
-        // };
-        let mut is_target_selectable = false;
-        if let Some(army) = &target.army {
-            if target.owner_index == self.player_index(&world)
-            && army.can_move
-            && Some(*target_cube) != self.selection {
-                is_target_selectable = true;
-            }
-        };
-        if let Some(selection) = &mut self.selection {
-            let legal_moves = world.get_reachable_cubes(&selection);
-            if legal_moves.contains(target_cube) {
-                world.execute_army_order(&selection, &target_cube);
-                self.actions -= 1;
-                // self.game.check_victory_condition() // call outside
-                self.selection = None; // deselect
-            }
-        }
-        if is_target_selectable {
-            self.selection = Some(*target_cube);
-        } else {
-            self.selection = None;
-        }
-    }
+    // fn player_index(&self, world: &World) -> Option<usize> {
+    //     for cube in self.cubes_owned.iter() {
+    //         let first_tile = world.get(cube).unwrap();
+    //         return first_tile.owner_index;
+    //     }
+    //     None
+    // }
 }
 
 impl Display for Player {

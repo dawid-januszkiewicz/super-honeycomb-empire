@@ -24,6 +24,7 @@ const MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ORIGIN: i32 = 80;
 const MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ALL: i32 = 50;
 const MORALE_PENALTY_LOSING_CITY: i32 = 10;
 const MORALE_PENALTY_PER_MANPOWER_LOSING_BATTLE: f32 = 0.1;
+const MORALE_PENALTY_IDLE_ARMY: i32 = 1;
 
 // Players interact with the game world by issuing commands to tiles containing an army,
 // effectively moving armies across tiles.
@@ -60,9 +61,10 @@ impl Army {
         assert!(bonus > 0);
         self.morale = min(self.manpower, self.morale + bonus)
     }
-    fn apply_morale_penalty(&mut self, penalty: i32, minimum_morale_value: i32) {
+    fn apply_morale_penalty(&mut self, penalty: i32, total_manpower: i32) {
         assert!(penalty < 0);
-        let minimum_morale = min(self.manpower, minimum_morale_value);
+        assert!(total_manpower >= 0); // sanity error catching, remove later
+        let minimum_morale = min(self.manpower, total_manpower / 50);
         self.morale = max(minimum_morale, self.morale - penalty);
     }
     fn combat_strength(&self) -> i32 {
@@ -196,6 +198,38 @@ impl World {
         visited.remove(start_cube);
         visited
     }
+
+    // // Called from within Game at the end of the turn. Applies a morale penalty to idle armies.
+    // pub fn apply_idle_morale_penalty(&mut self, player_index: usize) {
+    //     let player_cubes = cubes_by_ownership.get(&player_index).unwrap();
+    //     for cube in player_cubes.iter() {
+    //         let tile = self.get_mut(cube).unwrap();
+    //         if let Some(army) = &mut tile.army {
+    //             if army.can_move {
+    //                 let minimum_morale_value = calculate_minimum_morale(&self, player_index);
+    //                 army.apply_morale_penalty(MORALE_PENALTY_IDLE_ARMY, minimum_morale_value);
+    //             }
+    //         }
+    //     }
+    // }
+    pub fn split_fields(&mut self) -> (&mut HashMap<Cube<i32>, Tile>, &mut HashMap<usize, HashSet<Cube<i32>>>) {
+        (&mut self.world, &mut self.cubes_by_ownership)
+    }
+}
+// Called from within Game at the end of the turn. Applies a morale penalty to idle armies.
+
+pub fn apply_idle_morale_penalty(world: &mut World, player_index: usize) {
+    let total_manpower = player_total_manpower(&world, player_index);
+    let (world, cubes_by_ownership) = world.split_fields();
+    let player_cubes = cubes_by_ownership.get(&player_index).unwrap();
+    for cube in player_cubes.iter() {
+        let tile = world.get_mut(cube).unwrap();
+        if let Some(army) = &mut tile.army {
+            if army.can_move {
+                army.apply_morale_penalty(MORALE_PENALTY_IDLE_ARMY, total_manpower);
+            }
+        }
+    }
 }
 
 /// Sets the owner of the nearest neighbours (NN) of the target tile,
@@ -295,27 +329,31 @@ fn attack(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32
 /// Calculates the minimum morale value an army can have.
 /// If you use this function you have to remember to still account for the fact
 /// that an army's morale shouldn't exceed its manpower.
-fn calculate_minimum_morale(world: &World, player_index: usize) -> i32 {
+fn player_total_manpower(world: &World, player_index: usize) -> i32 {
     let mut total_manpower = 0;
-    for tile in world.values() {
+    // let cubes_by_ownership = world.cubes_by_ownership;
+    // let player_cubes = cubes_by_ownership.get(&player_index).unwrap();
+    let player_cubes = world.cubes_by_ownership.get(&player_index).unwrap();
+    for cube in player_cubes.iter() {
+        let tile = world.get(&cube).unwrap();
         if tile.owner_index == Some(player_index) {
             if let Some(army) = &tile.army {
                 total_manpower += army.manpower;
             }
         }
     }
-    total_manpower / 50 // implicit floor()
+    total_manpower
 }
 
 /// Calculates and applies the morale penalty to every army of the losing player.
 fn apply_morale_penalty_losing_combat(mut world: &mut World, losing_player_index: usize, manpower_lost: i32) {
     let penalty = (MORALE_PENALTY_PER_MANPOWER_LOSING_BATTLE * manpower_lost as f32) as i32; // implicit floor
-    let minimum_morale_value = calculate_minimum_morale(&world, losing_player_index);
+    let total_manpower = player_total_manpower(&world, losing_player_index);
     println!("Player {:?} suffers {} morale penalty", losing_player_index, penalty);
     for tile in world.values_mut() {
         if tile.owner_index == Some(losing_player_index) {
             if let Some(army) = tile.army.as_mut() {
-                army.apply_morale_penalty(penalty, minimum_morale_value);
+                army.apply_morale_penalty(penalty, total_manpower);
             }
         }
     }
@@ -331,7 +369,7 @@ fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cu
     let mut capturing_army_morale_bonus = 0;
     let mut origin_owner_morale_bonus = 0;
     let mut target_owner_morale_penalty = None;
-    let minimum_morale_value = -1; // this better not get executed
+    let target_total_manpower = -1; // this better not get executed
 
     // Calculate morale bonus/penalty
     // let target = world.get_mut(target_cube).unwrap();
@@ -344,7 +382,7 @@ fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cu
         Some(locality) if locality.category == "City".to_string() => {
             capturing_army_morale_bonus = MORALE_BONUS_ANNEX_CITY_ORIGIN;
             let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_CITY_ALL;
-            let minimum_morale_value = calculate_minimum_morale(&world, target.owner_index.unwrap());
+            let target_total_manpower = player_total_manpower(&world, target.owner_index.unwrap());
             target_owner_morale_penalty = Some(MORALE_PENALTY_LOSING_CITY);
         },
 
@@ -366,7 +404,7 @@ fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cu
                 tile.army.as_mut().unwrap().apply_morale_bonus(origin_owner_morale_bonus);
             } else if tile.owner_index == target.owner_index {
                 if let Some(penalty) = target_owner_morale_penalty {
-                    tile.army.as_mut().unwrap().apply_morale_penalty(penalty, minimum_morale_value);
+                    tile.army.as_mut().unwrap().apply_morale_penalty(penalty, target_total_manpower);
                 }
             }
         }

@@ -17,11 +17,11 @@ use crate::Army;
 use crate::player::Player;
 use crate::World;
 use crate::world::MAX_STACK_SIZE;
+use crate::apply_idle_morale_penalty;
 
 const BASE_GROWTH_CITY: i32 = 5;
 const BASE_GROWTH_CAPITAL: i32 = 10;
 const BONUS_GROWTH_PER_TILE: i32 = 1;
-const MORALE_PENALTY_IDLE_ARMY: i32 = 1;
 
 #[derive(Debug)]
 pub struct Locality {
@@ -115,13 +115,55 @@ impl Game { // Game<'_>
         let index = self.current_player_index();
         &self.players[index]
     }
+        // Clicking on a tile with an army selects it. If the player
+    // already has a selection, it will issue a command with the
+    // clicked tile as the target of the command. If no command can
+    // be issued, and the clicked tile has an army, it will be
+    // selected. If it does not, the player's selection will be set
+    // to None. Clicking on the selected tile deselects it.
+    pub fn click(&mut self, target_cube: &Cube<i32>) {
+        let target = self.world.remove(target_cube).unwrap();
+        let current_player_index = self.current_player_index();
+        let current_player = self.current_player();
+        // let is_target_selectable = if let Some(army) = &target.army {
+        //     && target.owner_index == self.player_index(&world)
+        //     && army.can_move
+        //     && Some(target_cube) != self.selection
+        // };
+        let mut is_target_selectable = false;
+        if let Some(army) = &target.army {
+            if target.owner_index == Some(current_player_index)
+            && army.can_move
+            && Some(*target_cube) != current_player.selection {
+                is_target_selectable = true;
+            }
+        };
+        if let Some(selection) = current_player.selection {
+            let legal_moves = self.world.get_reachable_cubes(&selection);
+            if legal_moves.contains(target_cube) {
+                self.world.insert(*target_cube, target);
+                self.world.execute_army_order(&selection, &target_cube);
+                let current_player = self.current_player_mut();
+                current_player.actions -= 1;
+                // self.game.check_victory_condition()
+                current_player.selection = None; // deselect
+            }
+        }
+        let current_player = self.current_player_mut();
+        if is_target_selectable {
+            current_player.selection = Some(*target_cube);
+        } else {
+            current_player.selection = None;
+        }
+    }
     fn next_turn(&mut self) {
+        let current_player_index = self.current_player_index();
         self.current_player_mut().selection = None;
         self.current_player_mut().actions = 5;
         self.train_armies();
 
         // Reset army movement points
-        self.apply_idle_morale_penalty();
+        apply_idle_morale_penalty(&mut self.world, current_player_index);
         for tile in self.world.values_mut() {
             if let Some(army) = &mut tile.army {
                 army.can_move = true;
@@ -204,9 +246,7 @@ impl Game { // Game<'_>
             }
         }
     }
-    fn apply_idle_morale_penalty(&self) {
-        todo!();
-    }
+
     fn can_player_issue_a_command(player_index: usize) -> bool {
         todo!();
     }
