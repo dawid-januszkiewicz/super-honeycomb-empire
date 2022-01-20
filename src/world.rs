@@ -191,7 +191,7 @@ impl Army {
         let minimum_morale = min(self.manpower, total_manpower / 50);
         self.morale = max(minimum_morale, self.morale - penalty);
     }
-    fn combat_strength(&self) -> i32 {
+    pub fn combat_strength(&self) -> i32 {
         self.manpower + self.morale
     }
 }
@@ -290,7 +290,7 @@ impl World {
         }
     }
 
-    fn is_cube_passable(&self, cube: &Cube<i32>) -> bool {
+    pub fn is_cube_passable(&self, cube: &Cube<i32>) -> bool {
         match self.get(cube) {
             Some(tile) => (tile.army.is_none() || tile.locality.is_none()),
             None => false,
@@ -325,6 +325,18 @@ impl World {
         }
         visited.remove(start_cube);
         visited
+    }
+
+    pub fn is_there_capturable_tile_within_range(&self, cube: &Cube<i32>) -> bool {
+        let valid_targets = self.get_reachable_cubes(&cube);
+        for target in valid_targets {
+            let origin = self.get(cube).unwrap();
+            let target = self.get(&target).unwrap();
+            if origin.owner_index != target.owner_index {
+                return true
+            }
+        }
+        false
     }
 
     pub fn train_armies(&mut self, &player_index: &usize) {

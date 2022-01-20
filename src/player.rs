@@ -22,13 +22,14 @@ use std::ptr;
 use crate::World;
 use crate::cubic::Cube;
 use crate::Tile;
+use crate::AI;
 
 const ACTIONS_PER_TURN: i32 = 5;
 
 pub struct Player {
     pub name: String,
     pub actions: i32,
-    pub ai: bool,
+    pub ai: Option<AI>,
     pub selection: Option<Cube<i32>>,
 
     // self.camera = None
@@ -38,13 +39,16 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str, ai: Option<AI>) -> Self {
         Player {
             name: name.to_string(),
             actions: ACTIONS_PER_TURN,
-            ai: false,
+            ai,
             selection: Some(Cube::new(0,0)),
         }
+    }
+    pub fn skip_turn(&mut self) {
+        self.actions = 0;
     }
     // fn player_index(&self, world: &World) -> Option<usize> {
     //     for cube in self.cubes_owned.iter() {

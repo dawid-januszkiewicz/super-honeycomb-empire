@@ -44,7 +44,8 @@ impl Game { // Game<'_>
     // selected. If it does not, the player's selection will be set
     // to None. Clicking on the selected tile deselects it.
     pub fn click(&mut self, target_cube: &Cube<i32>) {
-        let target = self.world.remove(target_cube).unwrap();
+        println!("{:?}", target_cube);
+        let target = self.world.get(target_cube).unwrap();
         let current_player_index = self.current_player_index();
         let current_player = self.current_player();
         // let is_target_selectable = if let Some(army) = &target.army {
@@ -63,7 +64,6 @@ impl Game { // Game<'_>
         if let Some(selection) = current_player.selection {
             let legal_moves = self.world.get_reachable_cubes(&selection);
             if legal_moves.contains(target_cube) {
-                self.world.insert(*target_cube, target);
                 self.world.execute_army_order(&selection, &target_cube);
                 let current_player = self.current_player_mut();
                 current_player.actions -= 1;
@@ -108,15 +108,18 @@ impl Game { // Game<'_>
         }
 
         // Let AI make a move
-        // if self.current_player().ai {
-        //     target_generator = ai.generate_targets(self)
-        //     for target in target_generator:
-        //         if self.current_player.actions > 0:
-        //             ai.controller(self, target)
-        //         else:
-        //             break
-        //     self.current_player.skip_turn()
-        // }
+        if let Some(ai) = &self.current_player().ai {
+            let targets = ai.generate_targets(&current_player_index, &self.world);
+            for target in targets {
+                if self.current_player().actions > 0 {
+                    self.click(&target.origin);
+                    self.click(&target.target);
+                } else {
+                    break
+                }
+            }
+            self.current_player_mut().skip_turn();
+        }
     }
 }
 

@@ -2,7 +2,9 @@ mod cubic;
 mod game;
 mod player;
 mod world;
+mod ai;
 
+use ai::*;
 use cubic::*;
 use game::*;
 use player::*;
@@ -10,12 +12,17 @@ use world::*;
 use std::collections::HashMap;
 
 fn main() {
-    let mut player1 = Player::new("Redosia");
-    let player2 = Player::new("Bluegaria");
-    let player3 = Player::new("Greenland");
-    let player4 = Player::new("Violetnam");
-    let mut players = vec![player1, player2, player3, player4];
+    let ai1 = AI{scores: DEFAULT_SCORES};
+    let ai2 = AI{scores: DEFAULT_SCORES};
+    let mut player1 = Player::new("Redosia", Some(ai1));
+    let player2 = Player::new("Bluegaria", Some(ai2));
+    // let player3 = Player::new("Greenland");
+    // let player4 = Player::new("Violetnam");
+
+    // let mut players = vec![player1, player2, player3, player4];
+    let mut players = vec![player1, player2];
     let mut world = World::new();
+
     // world.insert(Cube::new(0,0), Tile::new("a"));
     // world.insert(Cube::new(1,0), Tile::new("b"));
     // world.insert(Cube::new(0,1), Tile::new("c"));
@@ -38,9 +45,9 @@ fn main() {
     // world.insert(Cube::new(2,-1), Tile::new("u"));
     // world.insert(Cube::new(1,-2), Tile::new("v"));
 
-    let army1 = Army {manpower: 50, morale: 22, owner_index: Some(0), can_move: true};
-    let army2 = Army {manpower: 88, morale: 44, owner_index: Some(1), can_move: true};
-    let army3 = Army {manpower: 88, morale: 1, owner_index: Some(2), can_move: true};
+    let army1 = Army {manpower: 99, morale: 99, owner_index: Some(0), can_move: true};
+    let army2 = Army {manpower: 70, morale: 70, owner_index: Some(1), can_move: true};
+    let army3 = Army {manpower: 70, morale: 70, owner_index: Some(1), can_move: true};
 
     let mut army1 = Some(army1);
     let mut army2 = Some(army2);
@@ -48,7 +55,7 @@ fn main() {
 
     world.insert(Cube::new(0,0), Tile {owner_index: Some(0), category: TileCategory::Farmland, locality: None, army: army1});
     world.insert(Cube::new(1,0), Tile {owner_index: Some(1), category: TileCategory::Farmland, locality: None, army: army2});
-    world.insert(Cube::new(0,-1), Tile {owner_index: Some(2), category: TileCategory::Farmland, locality: None, army: None});
+    world.insert(Cube::new(0,-1), Tile {owner_index: Some(1), category: TileCategory::Farmland, locality: None, army: None});
 
     // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
     // println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
@@ -56,7 +63,7 @@ fn main() {
     // println!("(0,-1): {}", world.get(&Cube::new(0,-1)).unwrap());
     // println!("{:?}", world.cubes_by_ownership);
 
-    world.execute_army_order(&Cube::new(1,0), &Cube::new(0,0));
+    // world.execute_army_order(&Cube::new(1,0), &Cube::new(0,0));
     // army::issue_order(&mut world, &mut players, &Cube::new(0,0), &Cube::new(0,-1));
 
     // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
@@ -70,6 +77,11 @@ fn main() {
         players: players,
         world: world
     };
+
+    game.update_world();
+    game.update_world();
+    game.update_world();
+
 
     // println!("{}", game.current_player());
     // game.turn += 1;
