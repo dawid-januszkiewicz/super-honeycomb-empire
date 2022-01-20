@@ -1,6 +1,6 @@
 use crate::Cube;
-use crate::Tile;
 use crate::DIRECTIONS;
+use crate::Player;
 
 use std::collections::HashSet;
 use std::collections::HashMap;
@@ -25,6 +25,130 @@ const MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ALL: i32 = 50;
 const MORALE_PENALTY_LOSING_CITY: i32 = 10;
 const MORALE_PENALTY_PER_MANPOWER_LOSING_BATTLE: f32 = 0.1;
 const MORALE_PENALTY_IDLE_ARMY: i32 = 1;
+const BASE_GROWTH_CITY: i32 = 5;
+const BASE_GROWTH_CAPITAL: i32 = 10;
+const BONUS_GROWTH_PER_TILE: i32 = 1;
+
+// My own made up constants
+const BASE_GROWTH_SATELLITE_CAPITAL: i32 = 7;
+const MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ORIGIN: i32 = 40;
+const MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL: i32 = 25;
+
+pub enum LocalityCategory {
+    City,
+    PortCity,
+    Capital,
+    SatelliteCapital,
+}
+
+impl Display for LocalityCategory {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            LocalityCategory::City => write!(f, "City"),
+            LocalityCategory::PortCity => write!(f, "Port City"),
+            LocalityCategory::Capital => write!(f, "Capital"),
+            LocalityCategory::SatelliteCapital => write!(f, "Satellite Capital"),
+        }
+        // write!(f, "({})", self)
+    }
+}
+
+pub struct Locality {
+    name: String,
+    pub category: LocalityCategory, 
+    starting_owner_index: Option<usize>,
+}
+
+impl Display for Locality {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "({} of {})", self.category, self.name)
+    }
+}
+
+impl Locality {
+    fn new(name: &str, category: LocalityCategory) -> Self {
+        Locality {
+            name: name.to_string(),
+            category: category,
+            starting_owner_index: None,
+        }
+    }
+}
+
+pub enum TileCategory {
+    Farmland,
+    Water,
+}
+
+impl Display for TileCategory {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            TileCategory::Farmland => write!(f, "Farmland"),
+            TileCategory::Water => write!(f, "Water"),
+        }
+    }
+}
+
+pub struct Tile {
+    pub owner_index: Option<usize>,
+    pub category: TileCategory,
+    pub locality: Option<Locality>,
+    pub army: Option<Army>,
+}
+
+impl Tile {
+    pub fn new(category: TileCategory) -> Self {
+        Tile {
+            owner_index: None,
+            category: category,
+            locality: None,
+            army: None,
+        }
+    }
+}
+
+impl Tile {
+    pub fn owner<'a>(&self, players: &'a mut Vec<Player>) -> Option<&'a mut Player> {
+        match self.owner_index {
+            Some(index) => Some(&mut players[index]),
+            None => None,
+        }
+    }
+}
+
+impl Display for Tile {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        //     if self.locality:
+        //         string = str(self.locality.name)
+        //     else:
+        //         string = str(self.category)
+        //     return string
+        // write!(f, "({})", self.category)
+        if self.locality.is_some() {
+            write!(f, "({})", self.locality.as_ref().unwrap())
+        }
+        else {
+            write!(f, "{}", self.category)
+        }
+    }
+}
+
+// impl<'a> FromIterator<&'a Tile> for [&'a Tile; 6] {
+//     fn from_iter<I: IntoIterator<Item=&'a Tile>>(iter: I) -> Self {
+//         let mut arr = [&Tile{owner_index: 0, category: "".to_string(), army: None}; 6];
+
+//         let mut i = 0;
+//         for elem in iter {
+//             arr[i] = elem;
+//             i += 1;
+//         }
+//         // for i in iter {
+//         //     c.add(i);
+//         // }
+
+//         arr
+//     }
+// }
 
 // Players interact with the game world by issuing commands to tiles containing an army,
 // effectively moving armies across tiles.
@@ -80,12 +204,16 @@ impl Display for Army {
 
 // pub struct World(pub HashMap<Cube<i32>, Tile>);
 
-#[derive(Debug)]
 pub struct World {
     pub world: HashMap<Cube<i32>, Tile>,
     pub cubes_by_ownership: HashMap<usize, HashSet<Cube<i32>>>,
 }
 
+impl Display for World {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "({} tile-sized world with {} players)", self.world.len(), self.cubes_by_ownership.len())
+    }
+}
 
 impl Deref for World {
     type Target = HashMap<Cube<i32>, Tile>;
@@ -199,36 +327,95 @@ impl World {
         visited
     }
 
-    // // Called from within Game at the end of the turn. Applies a morale penalty to idle armies.
-    // pub fn apply_idle_morale_penalty(&mut self, player_index: usize) {
-    //     let player_cubes = cubes_by_ownership.get(&player_index).unwrap();
-    //     for cube in player_cubes.iter() {
-    //         let tile = self.get_mut(cube).unwrap();
-    //         if let Some(army) = &mut tile.army {
-    //             if army.can_move {
-    //                 let minimum_morale_value = calculate_minimum_morale(&self, player_index);
-    //                 army.apply_morale_penalty(MORALE_PENALTY_IDLE_ARMY, minimum_morale_value);
-    //             }
-    //         }
-    //     }
-    // }
-    pub fn split_fields(&mut self) -> (&mut HashMap<Cube<i32>, Tile>, &mut HashMap<usize, HashSet<Cube<i32>>>) {
-        (&mut self.world, &mut self.cubes_by_ownership)
-    }
-}
-// Called from within Game at the end of the turn. Applies a morale penalty to idle armies.
+    pub fn train_armies(&mut self, &player_index: &usize) {
+        let (world, cubes_by_ownership) = self.split_fields();
+        let player_cubes = cubes_by_ownership.get(&player_index).unwrap();
 
-pub fn apply_idle_morale_penalty(world: &mut World, player_index: usize) {
-    let total_manpower = player_total_manpower(&world, player_index);
-    let (world, cubes_by_ownership) = world.split_fields();
-    let player_cubes = cubes_by_ownership.get(&player_index).unwrap();
-    for cube in player_cubes.iter() {
-        let tile = world.get_mut(cube).unwrap();
-        if let Some(army) = &mut tile.army {
-            if army.can_move {
-                army.apply_morale_penalty(MORALE_PENALTY_IDLE_ARMY, total_manpower);
+        // First apply base growth
+        for cube in player_cubes {
+            let mut tile = world.get_mut(&cube).unwrap();
+            let mut growth = 0;
+            match &tile.locality {
+                Some(locality) => match &locality.category {
+                    LocalityCategory::City => growth = BASE_GROWTH_CITY,
+                    LocalityCategory::PortCity => growth = 0,
+                    LocalityCategory::Capital => growth = BASE_GROWTH_CAPITAL,
+                    LocalityCategory::SatelliteCapital => growth = BASE_GROWTH_SATELLITE_CAPITAL,
+                }
+                _ => {continue},
+            }
+            if growth > 0 { // redundant?
+                match &mut tile.army {
+                    Some(army) => {
+                        army.grow(growth);
+                    }
+                    None => {
+                        tile.army = Some(Army::new(growth, tile.owner_index));
+                    }
+                }
             }
         }
+
+        // Then apply bonus growth
+        let mut bonus_growth = player_cubes.len() as i32 * BONUS_GROWTH_PER_TILE;
+        let mut tiles_with_max_army_stack = HashSet::new();
+        for cube in player_cubes.iter().cycle() {
+            // break if we can't apply the bonus anywhere
+            if player_cubes.difference(&tiles_with_max_army_stack).collect::<HashSet<_>>().len() == 0 || bonus_growth <= 0 {
+                break;
+            }
+            let tile = world.get_mut(&cube).unwrap();
+            match &tile.locality {
+                Some(locality) => match &mut tile.army {
+                    Some(army) if army.manpower < MAX_STACK_SIZE => {
+                        let overflow = army.grow(2); // ideally 1, but here 2 so we grow morale by a whole number.
+                        bonus_growth -= overflow;
+                    }
+                    _ => {tiles_with_max_army_stack.insert(*cube);}
+                }
+                None => {tiles_with_max_army_stack.insert(*cube);}
+            }
+        }
+    }
+
+    // Called from within Game at the end of the turn. Applies a morale penalty to idle armies.
+    pub fn apply_idle_morale_penalty(&mut self, player_index: usize) {
+        let total_manpower = player_total_manpower(&self, player_index);
+        let (world, cubes_by_ownership) = self.split_fields();
+        let player_cubes = cubes_by_ownership.get(&player_index).unwrap();
+        for cube in player_cubes.iter() {
+            let tile = world.get_mut(cube).unwrap();
+            if let Some(army) = &mut tile.army {
+                if army.can_move {
+                    army.apply_morale_penalty(MORALE_PENALTY_IDLE_ARMY, total_manpower);
+                }
+            }
+        }
+    }
+    pub fn can_player_issue_a_command(&self, player_index: &usize) -> bool {
+        for cube in self.cubes_by_ownership.get(&player_index).unwrap() {
+            let tile = self.world.get(cube).unwrap();
+            if let Some(army) = &tile.army {
+                if army.can_move {
+                    return true
+                }
+            }
+        }
+        false
+    }
+    // Transfer the ownership of all of defeated_player tiles to player.
+    pub fn surrender_to_player(&mut self, surrendering_player_index: &usize, conquering_player_index: &usize) {
+        let (world, cubes_by_ownership) = self.split_fields();
+        for cube in cubes_by_ownership.get(&surrendering_player_index).unwrap() {
+            let tile = world.get_mut(cube).unwrap();
+            tile.army = None;
+            tile.owner_index = Some(*conquering_player_index);
+        }
+    }
+    
+    //Split struct fields into separate variables.
+    pub fn split_fields(&mut self) -> (&mut HashMap<Cube<i32>, Tile>, &mut HashMap<usize, HashSet<Cube<i32>>>) {
+        (&mut self.world, &mut self.cubes_by_ownership)
     }
 }
 
@@ -374,19 +561,23 @@ fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cu
     // Calculate morale bonus/penalty
     // let target = world.get_mut(target_cube).unwrap();
     match &target.locality {
-        Some(locality) if locality.category == "Capital".to_string() => {
-            capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ORIGIN;
-            let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ALL;
-        },
-
-        Some(locality) if locality.category == "City".to_string() => {
-            capturing_army_morale_bonus = MORALE_BONUS_ANNEX_CITY_ORIGIN;
-            let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_CITY_ALL;
-            let target_total_manpower = player_total_manpower(&world, target.owner_index.unwrap());
-            target_owner_morale_penalty = Some(MORALE_PENALTY_LOSING_CITY);
-        },
-
-        None if target.category == "farmland" => {
+        Some(locality) => match &locality.category {
+            LocalityCategory::Capital => {
+                capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ORIGIN;
+                let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ALL;
+            }
+            LocalityCategory::SatelliteCapital => {
+                capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ORIGIN;
+                let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL;
+            }
+            LocalityCategory::City | LocalityCategory::PortCity => {
+                capturing_army_morale_bonus = MORALE_BONUS_ANNEX_CITY_ORIGIN;
+                let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_CITY_ALL;
+                let target_total_manpower = player_total_manpower(&world, target.owner_index.unwrap());
+                target_owner_morale_penalty = Some(MORALE_PENALTY_LOSING_CITY);
+            }
+        }
+        None if matches!(target.category, TileCategory::Farmland) => {
             capturing_army_morale_bonus = MORALE_BONUS_ANNEX_RURAL;
             let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_RURAL;
         },

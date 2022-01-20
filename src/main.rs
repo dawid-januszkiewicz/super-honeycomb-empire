@@ -46,23 +46,24 @@ fn main() {
     let mut army2 = Some(army2);
     let mut army3 = Some(army3);
 
-    world.insert(Cube::new(0,0), Tile {owner_index: Some(0), category: "farmland".to_string(), locality: None, army: army1});
-    world.insert(Cube::new(1,0), Tile {owner_index: Some(1), category: "farmland".to_string(), locality: None, army: army2});
-    world.insert(Cube::new(0,-1), Tile {owner_index: Some(2), category: "farmland".to_string(), locality: None, army: None});
+    world.insert(Cube::new(0,0), Tile {owner_index: Some(0), category: TileCategory::Farmland, locality: None, army: army1});
+    world.insert(Cube::new(1,0), Tile {owner_index: Some(1), category: TileCategory::Farmland, locality: None, army: army2});
+    world.insert(Cube::new(0,-1), Tile {owner_index: Some(2), category: TileCategory::Farmland, locality: None, army: None});
 
     // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
     // println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
-    println!("(0,-1): {:?}", world.get(&Cube::new(0,-1)));
-    println!("{:?}", world.cubes_by_ownership);
+
+    // println!("(0,-1): {}", world.get(&Cube::new(0,-1)).unwrap());
+    // println!("{:?}", world.cubes_by_ownership);
 
     world.execute_army_order(&Cube::new(1,0), &Cube::new(0,0));
     // army::issue_order(&mut world, &mut players, &Cube::new(0,0), &Cube::new(0,-1));
 
     // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
     // println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
-    println!("(0,-1): {:?}", world.get(&Cube::new(0,-1)));
 
-    println!("{:?}", world.cubes_by_ownership);
+    // println!("(0,-1): {}", world.get(&Cube::new(0,-1)).unwrap());
+    // println!("{:?}", world.cubes_by_ownership);
 
     let mut game = Game {
         turn: 1,
