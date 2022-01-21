@@ -8,6 +8,7 @@ use std::ops::Mul;
 use std::ops::Div;
 
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
 
@@ -33,6 +34,12 @@ impl<T> Cube<T> where T: Copy + Signed {
 
     pub fn s(&self) -> T {
         -self.0 - self.1
+    }
+}
+
+impl<T: std::fmt::Display> Display for Cube<T> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "({}, {})", self.0, self.1)
     }
 }
 

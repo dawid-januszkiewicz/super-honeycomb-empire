@@ -44,10 +44,11 @@ impl Game { // Game<'_>
     // selected. If it does not, the player's selection will be set
     // to None. Clicking on the selected tile deselects it.
     pub fn click(&mut self, target_cube: &Cube<i32>) {
-        println!("{:?}", target_cube);
         let target = self.world.get(target_cube).unwrap();
         let current_player_index = self.current_player_index();
         let current_player = self.current_player();
+        // println!("current_selection: {:?}", current_player.selection);
+        // println!("click: {:?}", target_cube);
         // let is_target_selectable = if let Some(army) = &target.army {
         //     && target.owner_index == self.player_index(&world)
         //     && army.can_move
@@ -93,7 +94,7 @@ impl Game { // Game<'_>
         }
 
         self.turn += 1;
-        println!("turn: {}, player: {}", self.turn, self.current_player());
+        println!("Turn {}: {}", self.turn, self.current_player());
     }
     pub fn update_world(&mut self) {
         let current_player_index = self.current_player_index();
@@ -105,6 +106,7 @@ impl Game { // Game<'_>
         let can_player_issue_a_command = self.world.can_player_issue_a_command(&current_player_index);
         if self.current_player().actions == 0 || !can_player_issue_a_command {
             self.next_turn();
+            return
         }
 
         // Let AI make a move

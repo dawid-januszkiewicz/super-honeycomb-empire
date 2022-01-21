@@ -44,7 +44,7 @@ impl Player {
             name: name.to_string(),
             actions: ACTIONS_PER_TURN,
             ai,
-            selection: Some(Cube::new(0,0)),
+            selection: None,
         }
     }
     pub fn skip_turn(&mut self) {
@@ -61,6 +61,6 @@ impl Player {
 
 impl Display for Player {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "({})", self.name)
+        write!(f, "{}", self.name)
     }
 }

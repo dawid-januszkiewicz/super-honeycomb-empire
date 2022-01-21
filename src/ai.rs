@@ -27,6 +27,7 @@ pub struct Scores {
     satellite_capital: i32,
 }
 
+#[derive(Debug)]
 pub struct ScoredMove {
     score: i32,
     pub origin: Cube<i32>,
@@ -150,6 +151,7 @@ impl AI {
             let score = self.calculate_score(&own_player_index, world, &origin, &target);
             let element = ScoredMove{score, origin: *origin, target};
             result.push(element);
+            //return result; // can only move each army once, how to handle?
         }
         result
     }

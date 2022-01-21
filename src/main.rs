@@ -55,7 +55,7 @@ fn main() {
 
     world.insert(Cube::new(0,0), Tile {owner_index: Some(0), category: TileCategory::Farmland, locality: None, army: army1});
     world.insert(Cube::new(1,0), Tile {owner_index: Some(1), category: TileCategory::Farmland, locality: None, army: army2});
-    world.insert(Cube::new(0,-1), Tile {owner_index: Some(1), category: TileCategory::Farmland, locality: None, army: None});
+    world.insert(Cube::new(0,-1), Tile {owner_index: Some(1), category: TileCategory::Farmland, locality: None, army: army3});
 
     // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
     // println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
@@ -77,10 +77,22 @@ fn main() {
         players: players,
         world: world
     };
+    // game.update_world();
+    // game.update_world();
+    // game.update_world();
+    // game.update_world();
 
-    game.update_world();
-    game.update_world();
-    game.update_world();
+    let mut is_yet_won = false;
+    while !is_yet_won {
+        game.update_world();
+        for (player_index, player_cubes) in game.world.cubes_by_ownership.iter() {
+            if player_cubes.len() == game.world.len() {
+                println!("Player {} won!", player_index);
+                is_yet_won = true;
+                break;
+            }
+        }
+    }
 
 
     // println!("{}", game.current_player());

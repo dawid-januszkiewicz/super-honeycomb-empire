@@ -186,7 +186,7 @@ impl Army {
         self.morale = min(self.manpower, self.morale + bonus)
     }
     fn apply_morale_penalty(&mut self, penalty: i32, total_manpower: i32) {
-        assert!(penalty < 0);
+        assert!(penalty > 0);
         assert!(total_manpower >= 0); // sanity error catching, remove later
         let minimum_morale = min(self.manpower, total_manpower / 50);
         self.morale = max(minimum_morale, self.morale - penalty);
@@ -488,7 +488,7 @@ fn attack(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32
     let mut origin = world.remove(origin_cube).unwrap();
     let mut target = world.remove(target_cube).unwrap();
 
-    println!("{:?} attacks {:?} with {:?} against {:?}", origin.owner_index, target.owner_index, origin.army, target.army);
+    println!("{:?} attacks {:?} with {} against {}", origin.owner_index, target.owner_index, origin.army.as_ref().unwrap(), target.army.as_ref().unwrap());
 
     origin.army.as_mut().unwrap().can_move = false;
 
@@ -564,7 +564,7 @@ fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cu
 // fn capture_tile(mut game_world_tiles: &mut hash_map::ValuesMut<Cube<i32>, Tile>, mut origin: &mut Tile, mut target: &mut Tile) {
     let mut origin = world.remove(origin_cube).unwrap();
     let mut target = world.remove(target_cube).unwrap();
-    println!("{:?} captures {} from {:?}", origin.owner_index, target, target.owner_index);
+    println!("{:?} captures {} {} from {:?}", origin.owner_index, target, target_cube, target.owner_index);
     let mut capturing_army_morale_bonus = 0;
     let mut origin_owner_morale_bonus = 0;
     let mut target_owner_morale_penalty = None;
