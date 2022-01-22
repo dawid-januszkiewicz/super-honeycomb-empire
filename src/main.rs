@@ -1,13 +1,11 @@
 mod cubic;
 mod game;
-mod player;
 mod world;
 mod ai;
 
 use ai::*;
 use cubic::*;
 use game::*;
-use player::*;
 use world::*;
 use std::collections::HashMap;
 

@@ -1,6 +1,6 @@
 use crate::Cube;
 use crate::DIRECTIONS;
-use crate::Player;
+use crate::AI;
 
 use std::collections::HashSet;
 use std::collections::HashMap;
@@ -15,6 +15,7 @@ use std::fmt::Result;
 use std::cmp::max;
 use std::cmp::min;
 
+const ACTIONS_PER_TURN: i32 = 5;
 const MAX_TRAVEL_DISTANCE: i32 = 2;
 pub const MAX_STACK_SIZE: i32 = 99;
 const MORALE_BONUS_ANNEX_RURAL: i32 = 1;
@@ -33,6 +34,45 @@ const BONUS_GROWTH_PER_TILE: i32 = 1;
 const BASE_GROWTH_SATELLITE_CAPITAL: i32 = 7;
 const MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ORIGIN: i32 = 40;
 const MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL: i32 = 25;
+
+pub struct Player {
+    pub name: String,
+    pub actions: i32,
+    pub ai: Option<AI>,
+    pub selection: Option<Cube<i32>>,
+
+    // self.camera = None
+    // self.starting_cube = None
+    // self.color = color
+    // self.is_defeated = False
+}
+
+impl Player {
+    pub fn new(name: &str, ai: Option<AI>) -> Self {
+        Player {
+            name: name.to_string(),
+            actions: ACTIONS_PER_TURN,
+            ai,
+            selection: None,
+        }
+    }
+    pub fn skip_turn(&mut self) {
+        self.actions = 0;
+    }
+    // fn player_index(&self, world: &World) -> Option<usize> {
+    //     for cube in self.cubes_owned.iter() {
+    //         let first_tile = world.get(cube).unwrap();
+    //         return first_tile.owner_index;
+    //     }
+    //     None
+    // }
+}
+
+impl Display for Player {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "{}", self.name)
+    }
+}
 
 pub enum LocalityCategory {
     City,

@@ -14,7 +14,7 @@ use std::fmt::Result;
 
 use crate::cubic::*;
 use crate::Army;
-use crate::player::Player;
+use crate::Player;
 use crate::World;
 use crate::world::MAX_STACK_SIZE;
 
