@@ -123,7 +123,7 @@ impl Cube<f64> {
         )
     }
     fn to_pixel(&self, &layout: &Layout) -> [f64; 2] {
-        let matrix = layout.orientation;
+        let matrix = layout.orientation.value();
         let size = layout.size;
         let origin = layout.origin;
         let x = (matrix.f0 * self.q() + matrix.f1 * self.r()) * size[0];
@@ -131,7 +131,7 @@ impl Cube<f64> {
         [x + origin[0], y + origin[1]]
     }
     fn corner_offset(&layout: &Layout, corner: u8) -> [f64; 2] {
-        let matrix = layout.orientation;
+        let matrix = layout.orientation.value();
         let size = layout.size;
         let angle = 2.0 * PI * (matrix.start_angle - corner as f64) / 6.0;
         [size[0] * angle.cos(), size[1] * angle.sin()]
@@ -240,40 +240,99 @@ struct Orientation {
 
 #[derive(Clone, Copy)]
 struct Layout {
-    orientation: Orientation,
+    orientation: OrientationKind,
     size: [f64; 2],
     origin: [f64; 2]
+}
+
+impl Layout {
+    fn align_top_left(&mut self, radius: f64) {
+        // R = Layout.size
+        // r = cos30 R = sqrt(3)/2 R
+        let factor = 3_f64.sqrt() / 2.0;
+        let r = [self.size[0] * factor, self.size[1] * factor];
+        let R = [self.size[0], self.size[1]];
+        let (mut x, mut y) = (0.,0.);
+        match self.orientation {
+            OrientationKind::Pointy => {
+                let x = (2. * r[0] * radius) - r[0];
+                // every 4 tiles skip one R
+                let y = (2. * R[1] * radius) - (2. * R[1] * radius/4.) + R[1];
+            }
+            OrientationKind::Flat => {
+                y = (2. * r[1] * radius);
+                // every 4 tiles skip one R
+                x = (2. * R[0] * radius) - (2. * R[0] * radius/4.) -R[0]/2.;
+            }
+        }
+        self.origin = [x, y];
+    }
 }
 
 // no const sqrt() yet...
 const SQRT3: f64 = 1.732050807568877293527446341505872366942805253810380628055806; // sqrt(3)
 
-const POINTY: Orientation = Orientation {
-    f0: SQRT3, 
-    f1: SQRT3 / 2.0, 
-    f2: 0.0, 
-    f3: 3.0 / 2.0,
-    b0: SQRT3 / 3.0, 
-    b1: -1.0 / 3.0, 
-    b2: 0.0, 
-    b3: 2.0 / 3.0, 
-    start_angle: 0.5
-};
+#[derive(Clone, Copy)]
+enum OrientationKind {
+    Pointy,
+    Flat,
+}
 
-const FLAT: Orientation = Orientation {
-    f0: 3.0 / 2.0,
-    f1: 0.0,
-    f2: SQRT3 / 2.0,
-    f3: SQRT3,
-    b0: 2.0 / 3.0,
-    b1: 0.0,
-    b2: -1.0 / 3.0,
-    b3: SQRT3 / 3.0,
-    start_angle: 0.0,
-};
+impl OrientationKind {
+    fn value(&self) -> Orientation {
+        match self {
+            OrientationKind::Pointy => Orientation {
+                f0: SQRT3, 
+                f1: SQRT3 / 2.0, 
+                f2: 0.0, 
+                f3: 3.0 / 2.0,
+                b0: SQRT3 / 3.0, 
+                b1: -1.0 / 3.0, 
+                b2: 0.0, 
+                b3: 2.0 / 3.0, 
+                start_angle: 0.5
+            },
+            OrientationKind::Flat => Orientation {
+                f0: 3.0 / 2.0,
+                f1: 0.0,
+                f2: SQRT3 / 2.0,
+                f3: SQRT3,
+                b0: 2.0 / 3.0,
+                b1: 0.0,
+                b2: -1.0 / 3.0,
+                b3: SQRT3 / 3.0,
+                start_angle: 0.0,
+            },
+        }
+    }
+}
+
+// const POINTY: Orientation = Orientation {
+//     f0: SQRT3, 
+//     f1: SQRT3 / 2.0, 
+//     f2: 0.0, 
+//     f3: 3.0 / 2.0,
+//     b0: SQRT3 / 3.0, 
+//     b1: -1.0 / 3.0, 
+//     b2: 0.0, 
+//     b3: 2.0 / 3.0, 
+//     start_angle: 0.5
+// };
+
+// const FLAT: Orientation = Orientation {
+//     f0: 3.0 / 2.0,
+//     f1: 0.0,
+//     f2: SQRT3 / 2.0,
+//     f3: SQRT3,
+//     b0: 2.0 / 3.0,
+//     b1: 0.0,
+//     b2: -1.0 / 3.0,
+//     b3: SQRT3 / 3.0,
+//     start_angle: 0.0,
+// };
 
 fn pixel_to_cube(&layout: &Layout, pixel: [f64; 2]) -> Cube<f64> {
-    let matrix = layout.orientation;
+    let matrix = layout.orientation.value();
     let size = layout.size;
     let origin = layout.origin;
     let pt = [(pixel[0] - origin[0]) / size[0], (pixel[1] - origin[1]) / size[1]];

@@ -1,3 +1,5 @@
+pub mod gen;
+
 use crate::Cube;
 use crate::DIRECTIONS;
 use crate::AI;
@@ -42,7 +44,7 @@ pub struct Player {
     pub selection: Option<Cube<i32>>,
 
     // self.camera = None
-    // self.starting_cube = None
+    pub capital_pos: Option<Cube<i32>>,
     // self.color = color
     // self.is_defeated = False
 }
@@ -54,6 +56,7 @@ impl Player {
             actions: ACTIONS_PER_TURN,
             ai,
             selection: None,
+            capital_pos: None,
         }
     }
     pub fn skip_turn(&mut self) {
@@ -321,7 +324,10 @@ impl World {
                 }
             },
             None if origin_owner == target_owner => move_to(self, origin_cube, target_cube), // own empty
-            None if origin_owner != target_owner => capture_tile(self, origin_cube, target_cube), // else's empty
+            None if origin_owner != target_owner => { // else's empty
+                capture_tile(self, origin_cube, target_cube);
+                move_to(self, origin_cube, target_cube);
+            },
             _ => unreachable!(),
         }
     
@@ -560,7 +566,10 @@ fn attack(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32
 
     world.insert(*origin_cube, origin);
     world.insert(*target_cube, target);
-    if diff > 0 {capture_tile(&mut world, origin_cube, target_cube);}
+    if diff > 0 {
+        capture_tile(&mut world, origin_cube, target_cube);
+        move_to(&mut world, origin_cube, target_cube);
+    }
     apply_morale_penalty_losing_combat(&mut world, losing_player.unwrap(), manpower_lost);
     losing_player
 }
@@ -587,6 +596,7 @@ fn player_total_manpower(world: &World, player_index: usize) -> i32 {
 /// Calculates and applies the morale penalty to every army of the losing player.
 fn apply_morale_penalty_losing_combat(mut world: &mut World, losing_player_index: usize, manpower_lost: i32) {
     let penalty = (MORALE_PENALTY_PER_MANPOWER_LOSING_BATTLE * manpower_lost as f32) as i32; // implicit floor
+    if penalty == 0 { return }
     let total_manpower = player_total_manpower(&world, losing_player_index);
     println!("Player {:?} suffers {} morale penalty", losing_player_index, penalty);
     for tile in world.values_mut() {
@@ -608,7 +618,7 @@ fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cu
     let mut capturing_army_morale_bonus = 0;
     let mut origin_owner_morale_bonus = 0;
     let mut target_owner_morale_penalty = None;
-    let target_total_manpower = -1; // this better not get executed
+    let mut target_total_manpower = -1; // this better not get executed
 
     // Calculate morale bonus/penalty
     // let target = world.get_mut(target_cube).unwrap();
@@ -616,22 +626,24 @@ fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cu
         Some(locality) => match &locality.category {
             LocalityCategory::Capital => {
                 capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ORIGIN;
-                let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ALL;
+                origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ALL;
             }
             LocalityCategory::SatelliteCapital => {
                 capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ORIGIN;
-                let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL;
+                origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL;
             }
             LocalityCategory::City | LocalityCategory::PortCity => {
                 capturing_army_morale_bonus = MORALE_BONUS_ANNEX_CITY_ORIGIN;
-                let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_CITY_ALL;
-                let target_total_manpower = player_total_manpower(&world, target.owner_index.unwrap());
-                target_owner_morale_penalty = Some(MORALE_PENALTY_LOSING_CITY);
+                origin_owner_morale_bonus = MORALE_BONUS_ANNEX_CITY_ALL;
+                if let Some(index) = target.owner_index {
+                    target_total_manpower = player_total_manpower(&world, index);
+                    target_owner_morale_penalty = Some(MORALE_PENALTY_LOSING_CITY);
+                }
             }
         }
         None if matches!(target.category, TileCategory::Farmland) => {
             capturing_army_morale_bonus = MORALE_BONUS_ANNEX_RURAL;
-            let origin_owner_morale_bonus = MORALE_BONUS_ANNEX_RURAL;
+            origin_owner_morale_bonus = MORALE_BONUS_ANNEX_RURAL;
         },
         _ => unreachable!(),
     };
@@ -657,5 +669,5 @@ fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cu
     target.owner_index = origin.owner_index;
     world.insert(*origin_cube, origin);
     world.insert(*target_cube, target);
-    move_to(&mut world, origin_cube, target_cube);
+    // move_to(&mut world, origin_cube, target_cube);
 }

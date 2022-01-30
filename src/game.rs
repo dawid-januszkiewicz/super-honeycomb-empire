@@ -18,6 +18,8 @@ use crate::Player;
 use crate::World;
 use crate::world::MAX_STACK_SIZE;
 
+use crate::world::gen::*;
+
 pub struct Game {
     pub turn: i32,
     pub players: Vec<Player>,//[&'a Player<'a>],//Vec<&Player>,
@@ -37,6 +39,13 @@ impl Game { // Game<'_>
         let index = self.current_player_index();
         &self.players[index]
     }
+    pub fn init_world(&mut self) {
+        let shape_gen = ShapeGen::Classic;
+        let localities_gen = LocalitiesGen::Random;
+        let capitals_gen = CapitalsGen::Classic;
+        self.world.generate(&mut self.players, shape_gen, 0, localities_gen, capitals_gen)
+    }
+
     // Clicking on a tile with an army selects it. If the player
     // already has a selection, it will issue a command with the
     // clicked tile as the target of the command. If no command can
