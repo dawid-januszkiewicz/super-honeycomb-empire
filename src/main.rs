@@ -1,158 +1,261 @@
-mod cubic;
-mod game;
-mod world;
-mod ai;
+use she;
 
-use ai::*;
-use cubic::*;
-use game::*;
-use world::*;
-use std::collections::HashMap;
+use std::iter;
 
-fn main() {
-    let ai1 = AI{scores: DEFAULT_SCORES};
-    let ai2 = AI{scores: DEFAULT_SCORES};
-    let ai3 = AI{scores: DEFAULT_SCORES};
-    let ai4 = AI{scores: DEFAULT_SCORES};
+use winit::{
+    event::*,
+    event_loop::{ControlFlow, EventLoop},
+    window::{Window, WindowBuilder},
+};
 
-    let mut player1 = Player::new("Redosia", Some(ai1));
-    let player2 = Player::new("Bluegaria", Some(ai2));
-    let player3 = Player::new("Greenland", Some(ai3));
-    let player4 = Player::new("Violetnam", Some(ai4));
+use wgpu::util::DeviceExt;
 
-    // let mut players = vec![player1, player2];
-    let mut players = vec![player1, player2, player3, player4];
-    let mut world = World::new();
+struct State {
+    surface: wgpu::Surface,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    config: wgpu::SurfaceConfiguration,
+    size: winit::dpi::PhysicalSize<u32>,
+    render_pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
+}
 
-    // world.insert(Cube::new(0,0), Tile::new("a"));
-    // world.insert(Cube::new(1,0), Tile::new("b"));
-    // world.insert(Cube::new(0,1), Tile::new("c"));
-    // world.insert(Cube::new(1,1), Tile::new("d"));
-    // world.insert(Cube::new(0,-1), Tile::new("e"));
-    // world.insert(Cube::new(-1,0), Tile::new("f"));
-    // world.insert(Cube::new(-1,-1), Tile::new("g"));
-    // world.insert(Cube::new(-2,-1), Tile::new("h"));
-    // world.insert(Cube::new(-1,-2), Tile::new("i"));
-    // world.insert(Cube::new(-2,-2), Tile::new("j"));
-    // world.insert(Cube::new(-2,0), Tile::new("k"));
-    // world.insert(Cube::new(0,-2), Tile::new("l"));
-    // world.insert(Cube::new(1,2), Tile::new("m"));
-    // world.insert(Cube::new(2,1), Tile::new("n"));
-    // world.insert(Cube::new(2,0), Tile::new("o"));
-    // world.insert(Cube::new(0,2), Tile::new("p"));
-    // world.insert(Cube::new(1,-1), Tile::new("r"));
-    // world.insert(Cube::new(-1,1), Tile::new("s"));
-    // world.insert(Cube::new(2,-2), Tile::new("t"));
-    // world.insert(Cube::new(2,-1), Tile::new("u"));
-    // world.insert(Cube::new(1,-2), Tile::new("v"));
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
 
+const VERTICES: &[Vertex] = &[
+    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
+    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
+    Vertex { position: [0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0] },
+];
 
+impl State {
+    async fn new(window: &Window) -> Self {
+        let size = window.inner_size();
 
-    // let army1 = Army {manpower: 99, morale: 99, owner_index: Some(0), can_move: true};
-    // let army2 = Army {manpower: 70, morale: 70, owner_index: Some(1), can_move: true};
-    // let army3 = Army {manpower: 70, morale: 70, owner_index: Some(1), can_move: true};
+        // The instance is a handle to our GPU
+        // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
+        let instance = wgpu::Instance::new(wgpu::Backends::all());
+        let surface = unsafe { instance.create_surface(window) };
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::default(),
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
+            })
+            .await
+            .unwrap();
 
-    // let mut army1 = Some(army1);
-    // let mut army2 = Some(army2);
-    // let mut army3 = Some(army3);
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: None,
+                    features: wgpu::Features::empty(),
+                    limits: wgpu::Limits::default(),
+                },
+                // Some(&std::path::Path::new("trace")), // Trace path
+                None,
+            )
+            .await
+            .unwrap();
 
-    // world.insert(Cube::new(0,0), Tile {owner_index: Some(0), category: TileCategory::Farmland, locality: None, army: army1});
-    // world.insert(Cube::new(1,0), Tile {owner_index: Some(1), category: TileCategory::Farmland, locality: None, army: army2});
-    // world.insert(Cube::new(0,-1), Tile {owner_index: Some(1), category: TileCategory::Farmland, locality: None, army: army3});
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface.get_preferred_format(&adapter).unwrap(),
+            width: size.width,
+            height: size.height,
+            present_mode: wgpu::PresentMode::Fifo,
+        };
+        surface.configure(&device, &config);
 
+        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        });        
 
-
-    // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
-    // println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
-
-    // println!("(0,-1): {}", world.get(&Cube::new(0,-1)).unwrap());
-    // println!("{:?}", world.cubes_by_ownership);
-
-    // world.execute_army_order(&Cube::new(1,0), &Cube::new(0,0));
-    // army::issue_order(&mut world, &mut players, &Cube::new(0,0), &Cube::new(0,-1));
-
-    // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
-    // println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
-
-    // println!("(0,-1): {}", world.get(&Cube::new(0,-1)).unwrap());
-    // println!("{:?}", world.cubes_by_ownership);
-
-    let mut game = Game {
-        turn: 1,
-        players: players,
-        world: world
-    };
-    game.init_world();
-    println!("{:?}", game.world.cubes_by_ownership);
-
-    // game.update_world();
-    // game.update_world();
-    // game.update_world();
-    // game.update_world();
-
-    let mut is_yet_won = false;
-    while !is_yet_won {
-        game.update_world();
-        for (player_index, player_cubes) in game.world.cubes_by_ownership.iter() {
-            if player_cubes.len() == game.world.len() {
-                println!("Player {} won!", player_index);
-                is_yet_won = true;
-                break;
+        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
             }
+        );
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main", // 1.
+                buffers: &[], // 2.
+            },
+            fragment: Some(wgpu::FragmentState { // 3.
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[wgpu::ColorTargetState { // 4.
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                }],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw, // 2.
+                cull_mode: Some(wgpu::Face::Back),
+                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+                polygon_mode: wgpu::PolygonMode::Fill,
+                // Requires Features::DEPTH_CLIP_CONTROL
+                unclipped_depth: false,
+                // Requires Features::CONSERVATIVE_RASTERIZATION
+                conservative: false,
+            },
+            depth_stencil: None, // 1.
+            multisample: wgpu::MultisampleState {
+                count: 1, // 2.
+                mask: !0, // 3.
+                alpha_to_coverage_enabled: false, // 4.
+            },
+            multiview: None, // 5.
+        });
+
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(VERTICES),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+
+        Self {
+            surface,
+            device,
+            queue,
+            config,
+            size,
+            render_pipeline,
+            vertex_buffer,
         }
     }
 
+    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        if new_size.width > 0 && new_size.height > 0 {
+            self.size = new_size;
+            self.config.width = new_size.width;
+            self.config.height = new_size.height;
+            self.surface.configure(&self.device, &self.config);
+        }
+    }
 
-    // println!("{}", game.current_player());
-    // game.turn += 1;
-    // println!("{}", game.current_player());
-    // game.turn += 1;
-    // println!("{}", game.current_player());
-    // game.turn += 1;
-    // println!("{}", game.current_player());
-    // game.turn += 1;
-    // println!("{}", game.current_player());
-    // game.turn += 1;
-    // println!("{}", game.current_player());
+    #[allow(unused_variables)]
+    fn input(&mut self, event: &WindowEvent) -> bool {
+        false
+    }
 
-    // army::extend_borders(&mut game.world, Tile::new("farmland"), Cube::new(0,0));
+    fn update(&mut self) {}
 
-    // println!("{:?}", cf.round());
+    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        let output = self.surface.get_current_texture()?;
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
-    // test_cube_round();
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
 
-    // println!("{:?}", c3);
-    // println!("{:?}", c3.distance(&c));
-    // println!("{:?}", c3);
-    // println!("{:?}", c);
-    // println!("{:?}", cf*5.2);
-    // println!("{:?}", convert(cffromi, f64));
-    // println!("{:?}", Cube::<f64>::from(c));
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
+            render_pass.set_pipeline(&self.render_pipeline); // 2.
+            render_pass.draw(0..3, 0..1); // 3.
+        }
 
-    // let Point1 = Point(0,0,0);
-    // let Point2 = Point(1.4,1.5,1.1);
-    // let Point3 = Point(3,5,-12);
+        self.queue.submit(iter::once(encoder.finish()));
+        output.present();
 
-    // println!("{:?}", f64::from(Point3) + 0.245);
-
-    // let Pointfloat = PointFloat(4.2,2.3,1.11);
-
-    // println!("{}", Point3.length());
-    // println!("{}", Point3.0);
-    // println!("{:?}", DIRECTIONS[0]);
-    // println!("{:?}", Point3.get_neighbour(0));
-    // println!("{:?}", Point2.get_nearest_neighbours());
-    // println!("{:?}", Point1.get_n_nearest_neighbours(2));
-
-    // println!("{:?}", Pointfloat.round());
-
-    //println!("{:?}", Point2 - Point3);
-
-    // let mut a: HashSet<char> = HashSet::from_iter(['a', 'b', 'c']);
-    // let mut b: HashSet<char> = HashSet::from_iter(['d']);
-    // let c: HashSet<&char> = a.union(&b).collect();
-    // println!("{:?}{:?}{:?}", a, b, c);
-
+        Ok(())
+    }
 }
 
-// wgle moge cie tak zasypywac losowymi pytaniami o utlenku metalow?
+fn main() {
+    // she::main();
+
+    env_logger::init();
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
+
+    // State::new uses async code, so we're going to wait for it to finish
+    let mut state: State = pollster::block_on(State::new(&window));
+
+    event_loop.run(move |event, _, control_flow| {
+        match event {
+            Event::WindowEvent {
+                ref event,
+                window_id,
+            } if window_id == window.id() => {
+                if !state.input(event) {
+                    // UPDATED!
+                    match event {
+                        WindowEvent::CloseRequested
+                        | WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(VirtualKeyCode::Escape),
+                                    ..
+                                },
+                            ..
+                        } => *control_flow = ControlFlow::Exit,
+                        WindowEvent::Resized(physical_size) => {
+                            state.resize(*physical_size);
+                        }
+                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                            // new_inner_size is &&mut so w have to dereference it twice
+                            state.resize(**new_inner_size);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Event::RedrawRequested(window_id) if window_id == window.id() => {
+                state.update();
+                match state.render() {
+                    Ok(_) => {}
+                    // Reconfigure the surface if lost
+                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                    // The system is out of memory, we should probably quit
+                    Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
+                    // All other errors (Outdated, Timeout) should be resolved by the next frame
+                    Err(e) => eprintln!("{:?}", e),
+                }
+            }
+            Event::RedrawEventsCleared => {
+                // RedrawRequested will only trigger once, unless we manually
+                // request it.
+                window.request_redraw();
+            }
+            _ => {}
+        }
+    });
+}
