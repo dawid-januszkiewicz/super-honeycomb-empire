@@ -1,158 +1,130 @@
+#![feature(trait_alias)]
+
 mod cubic;
 mod game;
 mod world;
 mod ai;
+// mod pixels;
+mod mquad;
+mod inputs;
+mod map_editor;
 
 use ai::*;
 use cubic::*;
 use game::*;
 use world::*;
-use std::collections::HashMap;
+use inputs::*;
+use map_editor::*;
+use std::{collections::{HashMap, HashSet}, fs::File};
+// use crate::pixels::*;
+use mquad::*;
+use macroquad::prelude::*;
 
-fn main() {
+const WATER_FRAGMENT_SHADER: &'static str = include_str!("../assets/water_fragment_shader.glsl");
+const WATER_VERTEX_SHADER: &'static str = include_str!("../assets/water_vertex_shader.glsl");
+
+async fn load_assets() -> Assets {
+    let f = File::open("assets/cities.json").expect("file should open read only");
+    let json: serde_json::Value = serde_json::from_reader(f).expect("file should be proper JSON");
+    let locality_names: Vec<_> = json["data"].as_array().unwrap().iter().map(|el| el["asciiname"].to_string().replace("\"", "")).collect();
+    // let locality_names = locality_names_v.iter().map(String::as_str).collect();
+    // let locality_names: Vec<&str> = locality_names_v.iter().map(|s| &**s).collect();
+
+
+    let font = load_ttf_font("assets/Iceberg-Regular.ttf").await.unwrap();
+    let army: Texture2D = load_texture("assets/army.png").await.unwrap();
+    let airport: Texture2D = load_texture("assets/airport.png").await.unwrap();
+    let fields = load_texture("assets/grass.png").await.expect("Failed to load texture");
+    let water_material = load_material(
+        WATER_VERTEX_SHADER,
+        WATER_FRAGMENT_SHADER,
+        MaterialParams {
+            uniforms: vec![
+                ("Time".to_owned(), UniformType::Float1),
+                ("RectSize".to_owned(), UniformType::Float2),
+            ],
+            ..Default::default()
+        },
+    ).unwrap();
+    Assets{locality_names, font, army, airport, fields, water_material}
+}
+
+fn window_conf() -> Conf {
+    Conf {
+        window_title: "Super Honeycomb Empire".to_owned(),
+        fullscreen: true,
+        ..Default::default()
+    }
+}
+
+#[macroquad::main(window_conf)]
+async fn main() {
+    let mut assets = load_assets().await;
+
+    run_editor(&assets).await;
+
     let ai1 = AI{scores: DEFAULT_SCORES};
     let ai2 = AI{scores: DEFAULT_SCORES};
     let ai3 = AI{scores: DEFAULT_SCORES};
     let ai4 = AI{scores: DEFAULT_SCORES};
 
-    let mut player1 = Player::new("Redosia", Some(ai1));
+    // let player1 = Player::new("Redosia", Some(ai1));
+    let player1 = Player::new("Redosia", None);
     let player2 = Player::new("Bluegaria", Some(ai2));
     let player3 = Player::new("Greenland", Some(ai3));
     let player4 = Player::new("Violetnam", Some(ai4));
 
-    // let mut players = vec![player1, player2];
-    let mut players = vec![player1, player2, player3, player4];
+    let players = vec![player1, player2, player3, player4];
+
     let mut world = World::new();
 
-    // world.insert(Cube::new(0,0), Tile::new("a"));
-    // world.insert(Cube::new(1,0), Tile::new("b"));
-    // world.insert(Cube::new(0,1), Tile::new("c"));
-    // world.insert(Cube::new(1,1), Tile::new("d"));
-    // world.insert(Cube::new(0,-1), Tile::new("e"));
-    // world.insert(Cube::new(-1,0), Tile::new("f"));
-    // world.insert(Cube::new(-1,-1), Tile::new("g"));
-    // world.insert(Cube::new(-2,-1), Tile::new("h"));
-    // world.insert(Cube::new(-1,-2), Tile::new("i"));
-    // world.insert(Cube::new(-2,-2), Tile::new("j"));
-    // world.insert(Cube::new(-2,0), Tile::new("k"));
-    // world.insert(Cube::new(0,-2), Tile::new("l"));
-    // world.insert(Cube::new(1,2), Tile::new("m"));
-    // world.insert(Cube::new(2,1), Tile::new("n"));
-    // world.insert(Cube::new(2,0), Tile::new("o"));
-    // world.insert(Cube::new(0,2), Tile::new("p"));
-    // world.insert(Cube::new(1,-1), Tile::new("r"));
-    // world.insert(Cube::new(-1,1), Tile::new("s"));
-    // world.insert(Cube::new(2,-2), Tile::new("t"));
-    // world.insert(Cube::new(2,-1), Tile::new("u"));
-    // world.insert(Cube::new(1,-2), Tile::new("v"));
-
-
-
-    // let army1 = Army {manpower: 99, morale: 99, owner_index: Some(0), can_move: true};
-    // let army2 = Army {manpower: 70, morale: 70, owner_index: Some(1), can_move: true};
-    // let army3 = Army {manpower: 70, morale: 70, owner_index: Some(1), can_move: true};
-
-    // let mut army1 = Some(army1);
-    // let mut army2 = Some(army2);
-    // let mut army3 = Some(army3);
-
-    // world.insert(Cube::new(0,0), Tile {owner_index: Some(0), category: TileCategory::Farmland, locality: None, army: army1});
-    // world.insert(Cube::new(1,0), Tile {owner_index: Some(1), category: TileCategory::Farmland, locality: None, army: army2});
-    // world.insert(Cube::new(0,-1), Tile {owner_index: Some(1), category: TileCategory::Farmland, locality: None, army: army3});
-
-
-
-    // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
-    // println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
-
-    // println!("(0,-1): {}", world.get(&Cube::new(0,-1)).unwrap());
-    // println!("{:?}", world.cubes_by_ownership);
-
-    // world.execute_army_order(&Cube::new(1,0), &Cube::new(0,0));
-    // army::issue_order(&mut world, &mut players, &Cube::new(0,0), &Cube::new(0,-1));
-
-    // println!("(0,0): {:?}", world.get(&Cube::new(0,0)));
-    // println!("(1,0): {:?}", world.get(&Cube::new(1,0)));
-
-    // println!("(0,-1): {}", world.get(&Cube::new(0,-1)).unwrap());
-    // println!("{:?}", world.cubes_by_ownership);
+    // save_map(&game.world.world);
+    // let mut world = World::from_json("assets/maps/map.json");
+    // let mut world = World::from_json("assets/saves/quicksave.json");
 
     let mut game = Game {
         turn: 1,
-        players: players,
-        world: world
+        players,
+        world,
+        victory_condition: game::VictoryCondition::Territory(0.85)
     };
-    game.init_world();
-    println!("{:?}", game.world.cubes_by_ownership);
 
-    // game.update_world();
-    // game.update_world();
-    // game.update_world();
-    // game.update_world();
+    game.init_world(&mut assets);
+
+    let size = [32.,32.];
+    // let size = [0.1,0.1]; // use this if in local coords
+    let origin = [300., 300.];//[100.,600.];//[100.,300.];
+    let mut layout = cubic::Layout{orientation: cubic::OrientationKind::Flat(cubic::FLAT), size, origin};
+
+    assets.water_material.set_uniform("RectSize", (size[0], size[1]));
 
     let mut is_yet_won = false;
+
+    let camera = &Camera2D {
+        // zoom: vec2(0.001, 0.001),
+        // offset: vec2(-0.5,-0.1),
+        zoom: vec2(1., -1.),
+        ..Default::default()
+    };
+
+    // set_camera(camera);
+
+    let mut time = 0.0;
+
     while !is_yet_won {
+        clear_background(DARKGRAY);
+
+        poll_inputs(&mut game, &mut layout);
+
+        draw(&game, &layout, &assets, time);
+    
         game.update_world();
-        for (player_index, player_cubes) in game.world.cubes_by_ownership.iter() {
-            if player_cubes.len() == game.world.len() {
-                println!("Player {} won!", player_index);
-                is_yet_won = true;
-                break;
-            }
-        }
+
+        is_yet_won = game.victory_condition.check(&game.world, game.current_player_index());
+
+        next_frame().await;
+        time += get_frame_time();
     }
-
-
-    // println!("{}", game.current_player());
-    // game.turn += 1;
-    // println!("{}", game.current_player());
-    // game.turn += 1;
-    // println!("{}", game.current_player());
-    // game.turn += 1;
-    // println!("{}", game.current_player());
-    // game.turn += 1;
-    // println!("{}", game.current_player());
-    // game.turn += 1;
-    // println!("{}", game.current_player());
-
-    // army::extend_borders(&mut game.world, Tile::new("farmland"), Cube::new(0,0));
-
-    // println!("{:?}", cf.round());
-
-    // test_cube_round();
-
-    // println!("{:?}", c3);
-    // println!("{:?}", c3.distance(&c));
-    // println!("{:?}", c3);
-    // println!("{:?}", c);
-    // println!("{:?}", cf*5.2);
-    // println!("{:?}", convert(cffromi, f64));
-    // println!("{:?}", Cube::<f64>::from(c));
-
-    // let Point1 = Point(0,0,0);
-    // let Point2 = Point(1.4,1.5,1.1);
-    // let Point3 = Point(3,5,-12);
-
-    // println!("{:?}", f64::from(Point3) + 0.245);
-
-    // let Pointfloat = PointFloat(4.2,2.3,1.11);
-
-    // println!("{}", Point3.length());
-    // println!("{}", Point3.0);
-    // println!("{:?}", DIRECTIONS[0]);
-    // println!("{:?}", Point3.get_neighbour(0));
-    // println!("{:?}", Point2.get_nearest_neighbours());
-    // println!("{:?}", Point1.get_n_nearest_neighbours(2));
-
-    // println!("{:?}", Pointfloat.round());
-
-    //println!("{:?}", Point2 - Point3);
-
-    // let mut a: HashSet<char> = HashSet::from_iter(['a', 'b', 'c']);
-    // let mut b: HashSet<char> = HashSet::from_iter(['d']);
-    // let c: HashSet<&char> = a.union(&b).collect();
-    // println!("{:?}{:?}{:?}", a, b, c);
+    println!("Player {} won!", game.current_player_index());
 
 }
-
-// wgle moge cie tak zasypywac losowymi pytaniami o utlenku metalow?

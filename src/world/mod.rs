@@ -7,6 +7,7 @@ use crate::AI;
 use std::collections::HashSet;
 use std::collections::HashMap;
 
+use std::collections::VecDeque;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
@@ -17,8 +18,11 @@ use std::fmt::Result;
 use std::cmp::max;
 use std::cmp::min;
 
+use serde::{Serialize, Deserialize};
+
 const ACTIONS_PER_TURN: i32 = 5;
 const MAX_TRAVEL_DISTANCE: i32 = 2;
+const EXTEND_BORDERS_DISTANCE: usize = 1;
 pub const MAX_STACK_SIZE: i32 = 99;
 const MORALE_BONUS_ANNEX_RURAL: i32 = 1;
 const MORALE_BONUS_ANNEX_CITY_ORIGIN: i32 = 20;
@@ -37,6 +41,7 @@ const BASE_GROWTH_SATELLITE_CAPITAL: i32 = 7;
 const MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ORIGIN: i32 = 40;
 const MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL: i32 = 25;
 
+#[derive(Serialize, Deserialize)]
 pub struct Player {
     pub name: String,
     pub actions: i32,
@@ -77,11 +82,13 @@ impl Display for Player {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub enum LocalityCategory {
     City,
     PortCity,
     Capital,
     SatelliteCapital,
+    Airport,
 }
 
 impl Display for LocalityCategory {
@@ -91,13 +98,15 @@ impl Display for LocalityCategory {
             LocalityCategory::PortCity => write!(f, "Port City"),
             LocalityCategory::Capital => write!(f, "Capital"),
             LocalityCategory::SatelliteCapital => write!(f, "Satellite Capital"),
+            LocalityCategory::Airport => write!(f, "Airport"),
         }
         // write!(f, "({})", self)
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Locality {
-    name: String,
+    pub name: String,
     pub category: LocalityCategory, 
     starting_owner_index: Option<usize>,
 }
@@ -117,7 +126,7 @@ impl Locality {
         }
     }
 }
-
+#[derive(Clone, Serialize, Deserialize)]
 pub enum TileCategory {
     Farmland,
     Water,
@@ -132,6 +141,7 @@ impl Display for TileCategory {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Tile {
     pub owner_index: Option<usize>,
     pub category: TileCategory,
@@ -146,6 +156,13 @@ impl Tile {
             category: category,
             locality: None,
             army: None,
+        }
+    }
+
+    pub fn is_capturable(&self) -> bool {
+        match self.category {
+            TileCategory::Water => false,
+            TileCategory::Farmland => true,
         }
     }
 }
@@ -168,7 +185,7 @@ impl Display for Tile {
         //     return string
         // write!(f, "({})", self.category)
         if self.locality.is_some() {
-            write!(f, "({})", self.locality.as_ref().unwrap())
+            write!(f, "{}", self.locality.as_ref().unwrap())
         }
         else {
             write!(f, "{}", self.category)
@@ -195,7 +212,7 @@ impl Display for Tile {
 
 // Players interact with the game world by issuing commands to tiles containing an army,
 // effectively moving armies across tiles.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Army {
     pub manpower: i32,
     pub morale: i32,
@@ -247,10 +264,62 @@ impl Display for Army {
 
 // pub struct World(pub HashMap<Cube<i32>, Tile>);
 
+// #[derive(Serialize)]
 pub struct World {
     pub world: HashMap<Cube<i32>, Tile>,
+    // #[serde(skip)]
     pub cubes_by_ownership: HashMap<usize, HashSet<Cube<i32>>>,
+    // #[serde(skip)]
+    pub cubes_with_airport: HashSet<Cube<i32>>,
 }
+
+impl Serialize for World {
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.world.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for World {
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let world = HashMap::<Cube<i32>, Tile>::deserialize(deserializer)?;
+
+        let mut cubes_by_ownership: HashMap<usize, HashSet<Cube<i32>>> = HashMap::new();
+        let mut cubes_with_airport: HashSet<Cube<i32>> = HashSet::new();
+
+        world.iter().for_each(|(cube, tile)| {
+            if let Some(index) = tile.owner_index {
+                let set = cubes_by_ownership.entry(index).or_insert(HashSet::new());
+                set.insert(*cube);
+            }
+            if let Some(locality) = &tile.locality {
+                if matches!(locality.category, LocalityCategory::Airport) {
+                    cubes_with_airport.insert(*cube);
+                }
+            }
+        });
+
+        Ok(World {
+            world,
+            cubes_by_ownership,
+            cubes_with_airport,
+        })
+    }
+}
+
+// impl Serialize for World {
+//     fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+//     where
+//         S: serde::Serializer,
+//     {
+//         serializer.serialize(self.world)
+//     }
+// }
 
 impl Display for World {
     fn fmt(&self, f: &mut Formatter) -> Result {
@@ -277,6 +346,7 @@ impl World {
         World {
             world: HashMap::new(),
             cubes_by_ownership: HashMap::new(),
+            cubes_with_airport: HashSet::new(),
         }
     }
     pub fn insert(&mut self, key: Cube<i32>, value: Tile) {
@@ -285,15 +355,25 @@ impl World {
             let set = self.cubes_by_ownership.entry(index).or_insert(HashSet::new());
             set.insert(key);
         }
+        if let Some(locality) = &value.locality {
+            if matches!(locality.category, LocalityCategory::Airport) {
+                self.cubes_with_airport.insert(key);
+            }
+        }
         self.world.insert(key, value);
     }
     pub fn remove(&mut self, k: &Cube<i32>) -> Option<Tile> {
         let value = self.world.remove(k);
-        if value.is_some() {
-            if let Some(index) = value.as_ref().unwrap().owner_index {
+        if let Some(value) = &value {
+            if let Some(index) = value.owner_index {
                 let set = self.cubes_by_ownership.get_mut(&index).unwrap();
                 set.remove(k);
-            } 
+            }
+            if let Some(locality) = &value.locality {
+                if matches!(locality.category, LocalityCategory::Airport) {
+                    self.cubes_with_airport.remove(k);
+                }
+            }
         }
         value
     }
@@ -308,7 +388,7 @@ impl World {
     /// attack() - the target tile has a hostile army.
     pub fn execute_army_order(&mut self, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
         let target = self.get(target_cube).unwrap();
-        let origin_owner = self.get(origin_cube).unwrap().owner_index;
+        let origin_owner = self.get(origin_cube).unwrap().army.as_ref().unwrap().owner_index;
         let target_owner = self.get(target_cube).unwrap().owner_index;
         // let target_army = self.get(target_cube).unwrap().army.as_ref();
     
@@ -336,10 +416,127 @@ impl World {
         }
     }
 
-    pub fn is_cube_passable(&self, cube: &Cube<i32>) -> bool {
-        match self.get(cube) {
-            Some(tile) => (tile.army.is_none() || tile.locality.is_none()),
+    pub fn breadth_first_search(&self, start: &Cube<i32>) {
+        let mut frontier = VecDeque::from([*start]);
+        let mut reached = HashSet::new();
+        reached.insert(*start);
+
+        while !frontier.is_empty() {
+            let current = frontier.pop_front().unwrap();
+            for next in current.disc(1) {
+                if !reached.contains(&next) {
+                    frontier.push_back(next);
+                    reached.insert(next);
+                }
+            }
+        }
+    }
+
+    pub fn breadth_first_search_path(&self, start: &Cube<i32>, goal: &Cube<i32>) {
+        let mut frontier = VecDeque::from([*start]);
+        let mut came_from = HashMap::new();
+        came_from.insert(*start, None);
+
+        while !frontier.is_empty() {
+            let current = frontier.pop_front();
+            for next in current.unwrap().disc(1) {
+                if !came_from.contains_key(&next) {
+                    frontier.push_back(next);
+                    came_from.insert(next, current);
+                }
+            }
+        }
+
+        let mut current = *goal;
+        let mut path = vec![];
+        while current != *start {
+            path.push(current);
+            current = came_from[&current].unwrap();
+        }
+        path.push(*start); // optional
+        path.reverse(); // optional
+    }
+
+    pub fn get_all_legal_moves(&self, origin: &Cube<i32>, owner_index: &usize) -> HashSet<Cube<i32>> {
+        let mut legal_moves = HashSet::new();
+        self.get_reachable_cubes(origin).iter().for_each(|target| {
+            if self.is_cube_targetable(origin, &target) {
+                legal_moves.insert(*target);
+            }
+        });
+
+        if self[origin].locality.as_ref().is_some_and(|l| matches!(l.category, LocalityCategory::Airport)) {
+            let airport_cubes = &self.cubes_with_airport;
+            let empty_set = HashSet::new();
+            let player_cubes = self.cubes_by_ownership.get(owner_index).unwrap_or(&empty_set);
+            let owned_airport_cubes: HashSet<&Cube<i32>> = airport_cubes.intersection(player_cubes).collect();
+            owned_airport_cubes.iter().for_each(|target| {
+                legal_moves.insert(**target); // careful, this will insert origin if it contains an airport
+            });
+        }
+        legal_moves.remove(origin);
+        legal_moves
+    }
+
+    // can the cube be captured by border extension mechanic
+    pub fn is_cube_extendable(&self, origin: &Cube<i32>, target: &Cube<i32>) -> bool {
+        let origin_tile = self.get(origin).unwrap();
+        match self.get(target) {
+            Some(tile) => tile.army.is_none() 
+                              && tile.locality.is_none()
+                              && !matches!(tile.category, TileCategory::Water)
+                              && !matches!(origin_tile.category, TileCategory::Water),
             None => false,
+        }
+    }
+
+    pub fn is_cube_targetable(&self, origin: &Cube<i32>, target: &Cube<i32>) -> bool {
+        let origin_t = self.get(origin).unwrap();
+        match self.get(target) {
+            Some(tile) => {
+                match tile.category {
+                    TileCategory::Water => {
+                        matches!(origin_t.category, TileCategory::Water)
+                        || {
+                            origin_t.locality.as_ref().is_some_and(|l| matches!(l.category, LocalityCategory::PortCity))
+                            // // is cube connected to other water tiles
+                        }
+                    },
+                    _ => true,
+                }
+            },
+            None => false
+        }
+    }
+
+    pub fn is_cube_passable(&self, origin: &Cube<i32>, target: &Cube<i32>) -> bool {
+        let origin_t = self.get(origin).unwrap();
+        // let target_t = self.get(target);
+        match self.get(target) {
+            Some(tile) => {
+                let cat_cond = match tile.category {
+                    TileCategory::Water => {
+                        origin_t.locality.as_ref().is_some_and(|l| matches!(l.category, LocalityCategory::PortCity)) ||
+                        matches!(origin_t.category, TileCategory::Water)
+                    },
+                    _ => true,
+                };
+                let arm_cond = match &tile.army {
+                    Some(army) => {
+                        army.owner_index == origin_t.army.as_ref().unwrap().owner_index
+                    },
+                    None => true,
+                };
+                let loc_cond = match &tile.locality {
+                    Some(_) => {
+                        tile.owner_index == origin_t.owner_index
+                    },
+                    None => true,
+                };
+
+                cat_cond && arm_cond && loc_cond
+            },
+            None => false
         }
     }
 
@@ -361,7 +558,7 @@ impl World {
                         if self.get(&neighbour).is_some() {
                             visited.insert(neighbour);
                         }
-                        if self.is_cube_passable(&neighbour) {
+                        if self.is_cube_passable(start_cube, &neighbour) {
                             next_fringes.push(neighbour);
                         }
                     }
@@ -387,16 +584,17 @@ impl World {
 
     pub fn train_armies(&mut self, &player_index: &usize) {
         let (world, cubes_by_ownership) = self.split_fields();
-        let player_cubes = cubes_by_ownership.get(&player_index).unwrap();
+        let player_cubes = cubes_by_ownership.get(&player_index).into_iter().flatten().collect::<HashSet<&Cube<i32>>>();
 
         // First apply base growth
-        for cube in player_cubes {
+        for cube in &player_cubes {
             let mut tile = world.get_mut(&cube).unwrap();
             let mut growth = 0;
             match &tile.locality {
                 Some(locality) => match &locality.category {
                     LocalityCategory::City => growth = BASE_GROWTH_CITY,
                     LocalityCategory::PortCity => growth = 0,
+                    LocalityCategory::Airport => growth = 0,
                     LocalityCategory::Capital => growth = BASE_GROWTH_CAPITAL,
                     LocalityCategory::SatelliteCapital => growth = BASE_GROWTH_SATELLITE_CAPITAL,
                 }
@@ -418,7 +616,7 @@ impl World {
         let mut bonus_growth = player_cubes.len() as i32 * BONUS_GROWTH_PER_TILE;
         let mut tiles_with_max_army_stack = HashSet::new();
         for cube in player_cubes.iter().cycle() {
-            // break if we can't apply the bonus anywhere
+            // break if we can't apply the bonus anywhere, or we run out
             if player_cubes.difference(&tiles_with_max_army_stack).collect::<HashSet<_>>().len() == 0 || bonus_growth <= 0 {
                 break;
             }
@@ -427,7 +625,7 @@ impl World {
                 Some(locality) => match &mut tile.army {
                     Some(army) if army.manpower < MAX_STACK_SIZE => {
                         let overflow = army.grow(2); // ideally 1, but here 2 so we grow morale by a whole number.
-                        bonus_growth -= overflow;
+                        bonus_growth -= (2 - overflow);
                     }
                     _ => {tiles_with_max_army_stack.insert(*cube);}
                 }
@@ -438,11 +636,12 @@ impl World {
 
     // Called from within Game at the end of the turn. Applies a morale penalty to idle armies.
     pub fn apply_idle_morale_penalty(&mut self, player_index: usize) {
+        let empty_set = HashSet::new();
         let total_manpower = player_total_manpower(&self, player_index);
-        let (world, cubes_by_ownership) = self.split_fields();
-        let player_cubes = cubes_by_ownership.get(&player_index).unwrap();
-        for cube in player_cubes.iter() {
-            let tile = world.get_mut(cube).unwrap();
+        let player_cubes = self.cubes_by_ownership.get(&player_index).unwrap_or(&empty_set);
+    
+        for cube in player_cubes {
+            let tile = self.world.get_mut(cube).unwrap();
             if let Some(army) = &mut tile.army {
                 if army.can_move {
                     army.apply_morale_penalty(MORALE_PENALTY_IDLE_ARMY, total_manpower);
@@ -450,16 +649,17 @@ impl World {
             }
         }
     }
+
     pub fn can_player_issue_a_command(&self, player_index: &usize) -> bool {
-        for cube in self.cubes_by_ownership.get(&player_index).unwrap() {
-            let tile = self.world.get(cube).unwrap();
-            if let Some(army) = &tile.army {
-                if army.can_move {
-                    return true
-                }
-            }
-        }
-        false
+        self.cubes_by_ownership
+            .get(player_index)
+            .map_or(false, |cubes| {
+                cubes.iter().any(|cube| {
+                    self.world.get(cube).map_or(false, |tile| {
+                        tile.army.as_ref().map_or(false, |army| army.can_move)
+                    })
+                })
+            })
     }
     // Transfer the ownership of all of defeated_player tiles to player.
     pub fn surrender_to_player(&mut self, surrendering_player_index: &usize, conquering_player_index: &usize) {
@@ -480,14 +680,14 @@ impl World {
 /// Sets the owner of the nearest neighbours (NN) of the target tile,
 /// to the owner of the origin tile, subject to conditions.
 /// Conditions: The NN tile does not contain any armies or localities,
-/// and does not already belong to origin.owner.
+/// and does not already belong to origin.owner. Tile category is not water.
 fn extend_borders(mut world: &mut World, target_cube: &Cube<i32>) {
     // Origin has now captured the target and so is irrelevant
     let target_owner_index = world.get(&target_cube).unwrap().owner_index;
-    let neighbours_cube = target_cube.disc(1); // Find the NN of the target cube
+    let neighbours_cube = target_cube.disc(EXTEND_BORDERS_DISTANCE); // Find the NN of the target cube
     for cube in neighbours_cube {
         if let Some(tile) = world.get(&cube) {
-            if tile.army.is_none() && tile.locality.is_none() && tile.owner_index != target_owner_index {
+            if world.is_cube_extendable(&target_cube, &cube) && tile.owner_index != target_owner_index {
                 capture_tile(&mut world, &target_cube, &cube);
             }
         }
@@ -546,19 +746,14 @@ fn attack(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32
     let combat_strength_to_army = (diff as f32/2.).ceil() as i32;
 
     if diff > 0 {
-        losing_player = target.owner_index;
-        match target.army {
-            Some(army) => {
-                target.army = None;
-                manpower_lost = army.manpower;
-            },
-            None => manpower_lost = 0,
-        }
+        losing_player = target.army.as_ref().unwrap().owner_index;
+        manpower_lost = target.army.as_ref().unwrap().manpower;
+        target.army = None;
         origin.army.as_mut().unwrap().manpower = combat_strength_to_army;
         origin.army.as_mut().unwrap().morale = combat_strength_to_army;
     } else {
-        losing_player = origin.owner_index;
-        manpower_lost = origin.army.unwrap().manpower;
+        losing_player = origin.army.as_ref().unwrap().owner_index;
+        manpower_lost = origin.army.as_ref().unwrap().manpower;
         origin.army = None;
         target.army.as_mut().unwrap().manpower = max(1, -combat_strength_to_army);
         target.army.as_mut().unwrap().morale = max(1, -combat_strength_to_army);
@@ -578,19 +773,23 @@ fn attack(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32
 /// If you use this function you have to remember to still account for the fact
 /// that an army's morale shouldn't exceed its manpower.
 fn player_total_manpower(world: &World, player_index: usize) -> i32 {
-    let mut total_manpower = 0;
-    // let cubes_by_ownership = world.cubes_by_ownership;
-    // let player_cubes = cubes_by_ownership.get(&player_index).unwrap();
-    let player_cubes = world.cubes_by_ownership.get(&player_index).unwrap();
-    for cube in player_cubes.iter() {
-        let tile = world.get(&cube).unwrap();
-        if tile.owner_index == Some(player_index) {
-            if let Some(army) = &tile.army {
-                total_manpower += army.manpower;
-            }
-        }
-    }
-    total_manpower
+    // let mut total_manpower = 0;
+    // let player_cubes = world.cubes_by_ownership.get(&player_index).unwrap();
+    // for cube in player_cubes.iter() {
+    //     let tile = world.get(&cube).unwrap();
+    //     if tile.owner_index == Some(player_index) {
+    //         if let Some(army) = &tile.army {
+    //             total_manpower += army.manpower;
+    //         }
+    //     }
+    // }
+    // total_manpower
+
+    world.cubes_by_ownership.get(&player_index).map_or(0, |cubes| {
+        cubes.iter().map(|c| 
+            world.get(c).unwrap().army.as_ref().map_or(0, |a| a.manpower)
+        ).sum()
+    })
 }
 
 /// Calculates and applies the morale penalty to every army of the losing player.
@@ -610,15 +809,29 @@ fn apply_morale_penalty_losing_combat(mut world: &mut World, losing_player_index
 
 /// Change the owner of the target tile to that of the origin tile,
 /// and apply appropriate morale modifiers to the owners of those tiles.
-fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
+fn capture_tile(world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
 // fn capture_tile(mut game_world_tiles: &mut hash_map::ValuesMut<Cube<i32>, Tile>, mut origin: &mut Tile, mut target: &mut Tile) {
-    let mut origin = world.remove(origin_cube).unwrap();
+
     let mut target = world.remove(target_cube).unwrap();
-    println!("{:?} captures {} {} from {:?}", origin.owner_index, target, target_cube, target.owner_index);
+
+    if !target.is_capturable() {
+        world.insert(*target_cube, target);
+        return
+    }
+
+    let mut origin = world.remove(origin_cube).unwrap();
+
+    let origin_owner = format!("Player {}", origin.army.as_ref().unwrap().owner_index.unwrap());
+    let from_clause = match target.owner_index {
+        Some(index) => format!(" from Player {}", index),
+        None => "".to_string(),
+    };
+    println!("{} captures {} {}{}", origin_owner, target, target_cube, from_clause);
+
     let mut capturing_army_morale_bonus = 0;
     let mut origin_owner_morale_bonus = 0;
     let mut target_owner_morale_penalty = None;
-    let mut target_total_manpower = -1; // this better not get executed
+    let mut target_total_manpower = -1; // this needs to get overwritten
 
     // Calculate morale bonus/penalty
     // let target = world.get_mut(target_cube).unwrap();
@@ -632,7 +845,7 @@ fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cu
                 capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ORIGIN;
                 origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL;
             }
-            LocalityCategory::City | LocalityCategory::PortCity => {
+            LocalityCategory::City | LocalityCategory::PortCity | LocalityCategory::Airport => {
                 capturing_army_morale_bonus = MORALE_BONUS_ANNEX_CITY_ORIGIN;
                 origin_owner_morale_bonus = MORALE_BONUS_ANNEX_CITY_ALL;
                 if let Some(index) = target.owner_index {
@@ -666,7 +879,7 @@ fn capture_tile(mut world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cu
     }
     
     // Actually capture the tile
-    target.owner_index = origin.owner_index;
+    target.owner_index = origin.army.as_ref().unwrap().owner_index;
     world.insert(*origin_cube, origin);
     world.insert(*target_cube, target);
     // move_to(&mut world, origin_cube, target_cube);

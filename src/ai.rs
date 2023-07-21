@@ -3,6 +3,9 @@
 use std::cmp::Reverse;
 use std::collections::HashSet;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::Cube;
 use crate::Tile;
 use crate::World;
@@ -17,12 +20,14 @@ use crate::LocalityCategory;
 //     Manpower(i32),
 // }
 
+#[derive(Serialize, Deserialize)]
 pub struct Scores {
     manpower: i32,
     water: i32,
     farmland: i32,
     city: i32,
     port_city: i32,
+    airport: i32,
     capital: i32,
     satellite_capital: i32,
 }
@@ -39,11 +44,13 @@ pub const DEFAULT_SCORES: Scores = Scores {
     manpower: 1,
     farmland: 1,
     port_city: 8,
+    airport: 9,
     city: 10,
     satellite_capital: 15,
     capital: 100,
 };
 
+#[derive(Serialize, Deserialize)]
 pub struct AI {
     pub scores: Scores,
 }
@@ -59,6 +66,7 @@ impl AI {
         match category {
             LocalityCategory::City => self.scores.city,
             LocalityCategory::PortCity => self.scores.port_city,
+            LocalityCategory::Airport => self.scores.airport,
             LocalityCategory::Capital => self.scores.capital,
             LocalityCategory::SatelliteCapital => self.scores.satellite_capital,
         }
@@ -77,7 +85,7 @@ impl AI {
         let neighbours_cube = cube.disc(1);
         for neighbour in neighbours_cube {
             if let Some(tile) = &world.get(&neighbour) {
-                if world.is_cube_passable(&neighbour) && tile.owner_index != Some(*own_player_index) {
+                if world.is_cube_extendable(&cube, &neighbour) && tile.owner_index != Some(*own_player_index) {
                     score += self.match_tile_category_score(&tile.category);
                 }
             }
@@ -158,7 +166,7 @@ impl AI {
 
     /// Score every likely useful player move.
     fn create_target_list(&self, own_player_index: &usize, world: &World) -> Vec<ScoredMove> {
-        let subset = self.create_owned_armies_world_subset(&own_player_index, &world);
+        let subset = self.create_owned_armies_world_subset(&own_player_index, &world); // this only returns 'useful' armies
         let mut target_list = Vec::new();
         for origin in subset {
             target_list.append(&mut self.explore_targets(&own_player_index, &world, &origin))
@@ -171,6 +179,7 @@ impl AI {
         // TODO: Return a lazy generator instead. -> std::slice::Iter<'_, ScoredMove>
         let mut target_list = self.create_target_list(&own_player_index, &world);
         target_list.sort_by_key(|scored_move| Reverse(scored_move.score));
+        if target_list.is_empty() {println!("empty target list")};
         target_list
     }
 

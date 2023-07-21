@@ -6,28 +6,78 @@
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fs::File;
+use std::fs::OpenOptions;
 use std::option::Option;
 
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::cubic::*;
 use crate::Army;
 use crate::Player;
 use crate::World;
+use crate::mquad::Assets;
 use crate::world::MAX_STACK_SIZE;
 
+use crate::world::TileCategory;
 use crate::world::gen::*;
 
+#[derive(Serialize, Deserialize)]
+pub enum VictoryCondition {
+    Elimination,
+    Territory(f32),
+    CaptureAndHold(HashSet<Cube<i32>>),
+}
+
+impl VictoryCondition {
+    fn check_territory(world: &World, player_index: usize, target_percentage: f32) -> bool {
+        let world_total = world.len();
+        let player_total = world.iter().filter(|&(_, tile)| tile.owner_index == Some(player_index)).count();
+        player_total as f32 / world_total as f32 >= target_percentage
+    }
+    pub fn check(&self, world: &World, player_index: usize) -> bool {
+        match self {
+            Self::Elimination => unimplemented!(),
+            Self::Territory(x) => VictoryCondition::check_territory(&world, player_index, *x),
+            _ => unimplemented!(),
+        }
+    }
+}
+#[derive(Serialize, Deserialize)]
 pub struct Game {
     pub turn: i32,
     pub players: Vec<Player>,//[&'a Player<'a>],//Vec<&Player>,
     //pub current_player: &'a Player, // change it to a function?
     pub world: World,
+    pub victory_condition: VictoryCondition,
 }
 
-impl Game { // Game<'_>
+impl Game {
+    pub fn to_json(&self, path: &str) {
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(path)
+            .expect("Failed to open the file.");
+    
+        match serde_json::to_writer(file, self) {
+            Ok(()) => println!("HashMap serialized and saved successfully."),
+            Err(e) => eprintln!("Error during serialization: {}", e),
+        }
+    }
+
+    pub fn from_json(path: &str) -> Self {
+        let f = File::open(path)
+            .expect("file should open read only");
+
+        serde_json::from_reader(f).expect("file should be proper JSON")
+    }
+
     pub fn current_player_index(&self) -> usize {
         (self.turn - 1) as usize % self.players.len()
     }
@@ -39,11 +89,11 @@ impl Game { // Game<'_>
         let index = self.current_player_index();
         &self.players[index]
     }
-    pub fn init_world(&mut self) {
-        let shape_gen = ShapeGen::Classic;
+    pub fn init_world(&mut self, assets: &mut Assets) {
+        let shape_gen = ShapeGen::Hexagonal;
         let localities_gen = LocalitiesGen::Random;
-        let capitals_gen = CapitalsGen::Classic;
-        self.world.generate(&mut self.players, shape_gen, 0, localities_gen, capitals_gen)
+        let capitals_gen = CapitalsGen::Random;
+        self.world.generate(&mut self.players, shape_gen, 10, localities_gen, capitals_gen, &mut assets.locality_names.iter().map(|s| &**s).collect());
     }
 
     // Clicking on a tile with an army selects it. If the player
@@ -65,20 +115,21 @@ impl Game { // Game<'_>
         // };
         let mut is_target_selectable = false;
         if let Some(army) = &target.army {
-            if target.owner_index == Some(current_player_index)
-            && army.can_move
+            if army.owner_index == Some(current_player_index)
+            && army.can_move // shouldnt this be origin.army.canmove?
             && Some(*target_cube) != current_player.selection {
+            // && self.world.is_cube_targetable(&current_player.selection, target_cube) {
                 is_target_selectable = true;
             }
         };
         if let Some(selection) = current_player.selection {
-            let legal_moves = self.world.get_reachable_cubes(&selection);
-            if legal_moves.contains(target_cube) {
+            let legal_moves = self.world.get_all_legal_moves(&selection, &current_player_index); // self.world.get_reachable_cubes(&selection);
+            if legal_moves.contains(target_cube) { // && self.world.is_cube_targetable(&selection, target_cube) { // !matches!(target.category, TileCategory::Water) {
                 self.world.execute_army_order(&selection, &target_cube);
                 let current_player = self.current_player_mut();
                 current_player.actions -= 1;
-                // self.game.check_victory_condition()
                 current_player.selection = None; // deselect
+                return;
             }
         }
         let current_player = self.current_player_mut();
