@@ -13,7 +13,6 @@ pub struct Editor {
     pub world: World,
     pub brush_idx: usize,
     pub brush: BrushLayer,
-    pub brush_size: usize,
 }
 
 #[derive(Debug, PartialEq, EnumIter)]
@@ -71,9 +70,7 @@ impl RemoveItem for LocalityCategory {
 
 impl PlaceItem for TileCategory {
     fn place(&self, world: &mut World, cube: &Cube<i32>) {
-        world.entry(*cube)
-             .and_modify(|t| t.category = self.clone())
-             .or_insert(self.clone().into());
+        world.insert(*cube, self.clone().into());
     }
 }
 
@@ -85,18 +82,66 @@ impl RemoveItem for TileCategory {
 
 impl Editor {
     pub fn new(world: World) -> Self {
-        Editor{world, brush_idx: 0, brush: BrushLayer::Tile, brush_size: 1}
+        Editor{world, brush_idx: 0, brush: BrushLayer::Tile}
     }
+    fn paint_tile(&mut self, cube: &Cube<i32>) {
+        match self.brush_idx {
+            2 => self.remove_tile(cube),
+            _ => {
+                let category = TileCategory::iter().nth(self.brush_idx).unwrap();
+                // self.place_tile(cube, category)
+                TileCategory::place(&category, &mut self.world, &cube);
+            },
+        }
+    }
+    fn paint_locality(&mut self, cube: &Cube<i32>) {
+        let c = LocalityCategory::iter().count() + 1;
+        match self.brush_idx {
+            c => self.remove_locality(cube),
+            _ => {
+                let category = LocalityCategory::iter().nth(self.brush_idx).unwrap();
+                // self.place_locality(cube, category)
+                LocalityCategory::place(&category, &mut self.world, &cube);
+            },
+        }
+    }
+
     fn paint<T: IntoEnumIterator + PlaceItem + RemoveItem>(&mut self, cube: &Cube<i32>) {
         match T::iter().nth(self.brush_idx) {
             Some(category) => T::place(&category, &mut self.world, &cube),
             None => T::remove(&mut self.world, cube)
         }
     }
+    // fn paint<T: IntoEnumIterator>(&mut self, cube: &Cube<i32>) {
+    //     let c = T::iter().count() + 1;
+    //     match self.brush_idx {
+    //         c => self.remove(cube),
+    //         _ => {
+    //             let category = T::iter().nth(self.brush_idx).unwrap();
+    //             self.place(cube, category)
+    //         },
+    //     }
+    // }
+    // fn paint_item<T: Clone>(&mut self, cube: &Cube<i32>, categories: &[T], category: &T) {
+    //     if self.brush_idx == categories.len() {
+    //         self.remove_item(cube);
+    //     } else {
+    //         let selected_category = categories[self.brush_idx].clone();
+    //         self.place_item(cube, selected_category);
+    //     }
+    // }
+    fn place<T: IntoEnumIterator + PlaceItem>(&mut self, &cube: &Cube<i32>, category: T) {
+        // let s = category.into();
+        T::place(&category, &mut self.world, &cube);
+        // match self.brush {
+        //     Tile => self.world.insert(cube, category.into()),
+        //     Locality => {if let Some(tile) = self.world.get(&cube) {tile.locality = Some(category.into())}}
+        // }
+    }
     pub fn click(&mut self, cube: &Cube<i32>) {
         match self.brush {
-            BrushLayer::Tile => self.paint::<TileCategory>(cube),
-            BrushLayer::Locality => self.paint::<LocalityCategory>(cube)
+            BrushLayer::Tile => self.paint::<TileCategory>(cube), //self.paint_tile(cube),
+            BrushLayer::Locality => self.paint::<LocalityCategory>(cube)//self.paint_locality(cube),
         };
     }
     pub fn right_click(&mut self) {
@@ -108,11 +153,22 @@ impl Editor {
         self.brush_idx %= max + 1;
     }
     pub fn toggle_layer(&mut self) {
-        let mut b = BrushLayer::iter();
-        let index = b.position(|x| x == self.brush).unwrap();
-        let max = b.count();
-        let new_index = (index + 1) % (max + 1);
-        self.brush = BrushLayer::iter().nth(new_index).unwrap();
+        let mut bc = BrushLayer::iter();
+        let index = bc.position(|x| x == self.brush).unwrap();
+        self.brush = bc.cycle().nth(index + 1).unwrap();
+    }
+    // fn place_tile(&mut self, &cube: &Cube<i32>, category: TileCategory) {
+    //     let tile = Tile::new(category);
+    //     self.world.insert(cube, tile);
+    // }
+    fn remove_tile(&mut self, cube: &Cube<i32>) {
+        self.world.remove(cube);
+    }
+    // fn place_locality(&mut self, &cube: &Cube<i32>, category: LocalityCategory) {
+    //     unimplemented!()
+    // }
+    fn remove_locality(&mut self, &cube: &Cube<i32>) {
+        unimplemented!()
     }
 }
 

@@ -19,6 +19,7 @@ use std::cmp::max;
 use std::cmp::min;
 
 use serde::{Serialize, Deserialize};
+use strum::EnumIter;
 
 const ACTIONS_PER_TURN: i32 = 5;
 const MAX_TRAVEL_DISTANCE: i32 = 2;
@@ -82,13 +83,25 @@ impl Display for Player {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(EnumIter, Serialize, Deserialize, Clone)]
 pub enum LocalityCategory {
     City,
     PortCity,
     Capital,
     SatelliteCapital,
     Airport,
+}
+
+// impl From<Locality> for LocalityCategory {
+//     fn from(locality: Locality) -> Self {
+//         locality.category
+//     }
+// }
+
+impl From<LocalityCategory> for Locality {
+    fn from(category: LocalityCategory) -> Self {
+        Self::new("", category)
+    }
 }
 
 impl Display for LocalityCategory {
@@ -118,7 +131,7 @@ impl Display for Locality {
 }
 
 impl Locality {
-    fn new(name: &str, category: LocalityCategory) -> Self {
+    pub fn new(name: &str, category: LocalityCategory) -> Self {
         Locality {
             name: name.to_string(),
             category: category,
@@ -126,7 +139,7 @@ impl Locality {
         }
     }
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(EnumIter, Serialize, Deserialize, Clone)]
 pub enum TileCategory {
     Farmland,
     Water,
@@ -148,6 +161,19 @@ pub struct Tile {
     pub locality: Option<Locality>,
     pub army: Option<Army>,
 }
+
+// impl From<Tile> for TileCategory {
+//     fn from(tile: Tile) -> Self {
+//         tile.category
+//     }
+// }
+
+impl From<TileCategory> for Tile {
+    fn from(category: TileCategory) -> Self {
+        Tile::new(category)
+    }
+}
+
 
 impl Tile {
     pub fn new(category: TileCategory) -> Self {
