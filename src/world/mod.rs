@@ -403,6 +403,14 @@ impl World {
         }
         value
     }
+    pub fn set_tile_owner(&mut self, cube: &Cube<i32>, new_index: usize) {
+        let mut tile = self.remove(cube).unwrap();
+        tile.owner_index = Some(new_index);
+        self.insert(*cube, tile);
+        // let tile = self.world.get(cube).unwrap();
+        // let old_owner = tile.owner_index;
+        // tile.owner_index = Some(new_index);
+    }
     /// Issues an appropriate order to the origin tile,
     /// with the target tile as the order target.
     /// Returns a set of captured coordinates.
@@ -610,11 +618,14 @@ impl World {
 
     pub fn train_armies(&mut self, &player_index: &usize) {
         let (world, cubes_by_ownership) = self.split_fields();
-        let player_cubes = cubes_by_ownership.get(&player_index).into_iter().flatten().collect::<HashSet<&Cube<i32>>>();
+        let mut player_cubes = cubes_by_ownership.get(&player_index).unwrap();//.into_iter().flatten().collect::<HashSet<&Cube<i32>>>();
+        let locality_cubes: HashSet<Cube<i32>> = world.iter().filter(|(c, t)| t.locality.is_some()).map(|(c, t)| *c).collect();
+        let player_cubes_w_locality: HashSet<_> = player_cubes.intersection(&locality_cubes).collect();
+        let player_cubes = player_cubes_w_locality;
 
         // First apply base growth
-        for cube in &player_cubes {
-            let mut tile = world.get_mut(&cube).unwrap();
+        for cube in player_cubes.iter() {
+            let mut tile = world.get_mut(cube).unwrap();
             let mut growth = 0;
             match &tile.locality {
                 Some(locality) => match &locality.category {

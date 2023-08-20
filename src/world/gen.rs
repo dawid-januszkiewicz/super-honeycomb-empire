@@ -7,6 +7,7 @@
 // from playergen import Player
 use core::cmp::max;
 use core::cmp::min;
+use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::Player;
@@ -214,15 +215,35 @@ impl World {
     //         starting_tile.owner = player
     //         starting_tile.locality = Locality(data.choose_random_city_name(), "Capital")
     //         player.starting_cube = starting_cube
+    // fn gen_random_capitals(&mut self, locality_names: &mut Vec<&str>, mut players: &mut Vec<Player>) {
+    //     let start_pos = sample(&mut rand::thread_rng(), self.len(), players.len());
+    //     players.iter_mut().enumerate().for_each(|(player_index, player)| {
+    //         let index = start_pos.index(player_index);
+    //         let cube = self.keys().skip(index).next().unwrap().clone();
+    //         let tile = self.get_mut(&cube).unwrap();
+    //         tile.category = TileCategory::Farmland;
+    //         tile.owner_index = Some(player_index);
+    //         tile.locality = Some(Locality::new("", LocalityCategory::Capital));
+    //         player.capital_pos = Some(cube);
+    //         let set = self.cubes_by_ownership.entry(player_index).or_insert(HashSet::new());
+    //         set.insert(cube);
+    //     });
+    // }
+    /// pick a random city for each player and turn it into their capital
     fn gen_random_capitals(&mut self, locality_names: &mut Vec<&str>, mut players: &mut Vec<Player>) {
-        let start_pos = sample(&mut rand::thread_rng(), self.len(), players.len());
+        let cubes_with_cities: HashSet<Cube<i32>> = self.iter().filter(|(c, t)| {
+            t.locality.as_ref().is_some_and(|l| {
+                matches!(l.category, LocalityCategory::City)
+            })
+        }).map(|(c, t)| *c).collect();
+
+        let start_pos = sample(&mut rand::thread_rng(), cubes_with_cities.len(), players.len());
         players.iter_mut().enumerate().for_each(|(player_index, player)| {
             let index = start_pos.index(player_index);
-            let cube = self.keys().skip(index).next().unwrap().clone();
+            let cube = cubes_with_cities.iter().skip(index).next().unwrap().clone();
             let tile = self.get_mut(&cube).unwrap();
-            tile.category = TileCategory::Farmland;
             tile.owner_index = Some(player_index);
-            tile.locality = Some(Locality::new("", LocalityCategory::Capital));
+            tile.locality.as_mut().unwrap().category = LocalityCategory::Capital;
             player.capital_pos = Some(cube);
             let set = self.cubes_by_ownership.entry(player_index).or_insert(HashSet::new());
             set.insert(cube);
@@ -243,7 +264,25 @@ impl World {
     pub fn generate(&mut self, players: &mut Vec<Player>, shape_gen: ShapeGen, radius: i32, localities_gen: LocalitiesGen, capitals_gen: CapitalsGen, locality_names: &mut Vec<&str>) {
         self.choose_shape_gen(shape_gen, radius);
         self.gen_water();
-        self.choose_capitals_gen(capitals_gen, players, locality_names);
         self.choose_localities_gen(localities_gen, locality_names);
+        self.choose_capitals_gen(capitals_gen, players, locality_names);
     }
+}
+
+impl World {
+    // fn from_shape(shape: Vec<(i32, i32)>, layout: crate::cubic::Layout<i32>) {
+    //     let x_max = shape.iter().map(|p| p.0).max().unwrap();
+    //     let x_min = shape.iter().map(|p| p.0).min().unwrap();
+    //     let y_max = shape.iter().map(|p| p.1).max().unwrap();
+    //     let y_min = shape.iter().map(|p| p.1).min().unwrap();
+    //     let bounding_box = [(x_min, y_min), (x_max, y_max)];
+
+    //     let map : HashSet<(i32, i32)> = HashSet::new();
+    //     // generate a map over the entire bounding box
+
+    //     //overlapping_subset = 
+
+    //     //let starting_point = bounding_box[0];
+    //     //let 
+    // }
 }

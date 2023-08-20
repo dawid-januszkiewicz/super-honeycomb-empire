@@ -4,7 +4,6 @@ use crate::game::Game;
 use crate::Layout;
 use crate::cubic;
 use crate::map_editor::Editor;
-use crate::map_editor::save_map;
 use crate::mquad::Assets;
 use crate::world::LocalityCategory;
 use crate::world::Tile;
@@ -14,6 +13,12 @@ use macroquad::prelude::*;
 
 const PAN_SPEED: f32 = 5.;
 const ZOOM_SPEED: f32 = 1.;
+
+// fn swtich() -> bool {
+//     if is_key_pressed(KeyCode::F1) {
+        
+//     }
+// }
 
 fn poll_camera_inputs(layout: &mut Layout<f32>) {
     let (_, mouse_wheel_y) = mouse_wheel();
@@ -41,7 +46,7 @@ fn poll_camera_inputs(layout: &mut Layout<f32>) {
     }
 }
 
-pub fn poll_map_editor_inputs(editor: &mut Editor, layout: &mut Layout<f32>) {
+pub fn poll_map_editor_inputs(editor: &mut Editor, layout: &mut Layout<f32>) -> bool {
     if is_mouse_button_down(MouseButton::Left) {
         let pos = mouse_position().into();
         let cube = cubic::pixel_to_cube(layout, pos).round::<i32>();
@@ -57,18 +62,31 @@ pub fn poll_map_editor_inputs(editor: &mut Editor, layout: &mut Layout<f32>) {
     }
 
     if is_key_down(KeyCode::F5) {
-        //save_map(&game.world.world, "assets/saves/quicksave.json");
-        save_map(&editor.world, "assets/maps/quicksave.json");
+        editor.to_json("assets/scenarios/quicksave.json");
     }
     if is_key_down(KeyCode::F9) {
-        *editor = Editor::new(World::from_json("assets/maps/quicksave.json"));
-        // *editor.world = World::from_json("assets/maps/quicksave.json");
+        *editor = Editor::from_json("assets/scenarios/quicksave.json");
     }
 
+    if is_key_pressed(KeyCode::C) {
+        *editor = Editor::new(World::new(), vec!())
+    }
+
+    let mut exit = false;
+    if is_key_pressed(KeyCode::Escape) {
+        exit = true
+    }
+
+    // if is_key_pressed(KeyCode::F1) {
+        
+    // }
+
     poll_camera_inputs(layout);
+
+    exit
 }
 
-pub fn poll_inputs(game: &mut Game, layout: &mut Layout<f32>) {
+pub fn poll_inputs(game: &mut Game, layout: &mut Layout<f32>) -> bool {
     // if is_key_down() {
     //     let key = last_key_pressed();
     // }
@@ -85,6 +103,11 @@ pub fn poll_inputs(game: &mut Game, layout: &mut Layout<f32>) {
         }
     }
 
+    let player = &mut game.players[player_index];
+    if is_key_pressed(KeyCode::Space) & player.ai.is_none() {
+        player.skip_turn();
+    }
+
     poll_camera_inputs(layout);
 
     if is_key_down(KeyCode::F5) {
@@ -94,6 +117,12 @@ pub fn poll_inputs(game: &mut Game, layout: &mut Layout<f32>) {
     if is_key_down(KeyCode::F9) {
         *game = Game::from_json("assets/saves/quicksave.json");
     }
+
+    let mut exit = false;
+    if is_key_pressed(KeyCode::Escape) {
+        exit = true
+    }
+    exit
 }
 
 pub fn draw_tile_selector(&layout: &Layout<f32>) {

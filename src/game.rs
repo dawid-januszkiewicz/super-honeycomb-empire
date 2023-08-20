@@ -57,13 +57,40 @@ pub struct Game {
     pub victory_condition: VictoryCondition,
 }
 
+impl From<crate::map_editor::Editor> for Game {
+    fn from(value: crate::map_editor::Editor) -> Self {
+        // let player_idx: std::collections::hash_map::Keys<'_, usize, HashSet<Cube<i32>>> = value.world.cubes_by_ownership.keys();
+        // let mut players: Vec<Player> = vec!();
+        // player_idx.for_each(|i| {
+        //     let player = Player::new("", Some(crate::ai::AI::new()));
+        //         players.push(player);
+        //     }
+        // );
+        crate::Game{turn: 1, players: value.players, world: value.world, victory_condition: VictoryCondition::Elimination}
+    }
+}
+
+impl From<Game> for crate::map_editor::Editor {
+    fn from(value: Game) -> Self {
+        crate::map_editor::Editor::new(value.world, value.players)
+    }
+}
+
 impl Game {
+    // pub async fn draw(&self, &layout: &Layout<f32>, assets: &Assets, time: f32) {
+    //     crate::draw(&self, &layout, assets, time).await;
+    // }
+    // pub fn poll(&mut self, layout: &mut Layout<f32>) {
+    //     crate::poll_inputs(self, layout);
+    // }
+    // pub fn swap(self) -> crate::map_editor::Editor {
+    //     self.into()
+    // }
+    // pub fn update(&mut self) {
+    //     self._update()
+    // }
     pub fn to_json(&self, path: &str) {
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(path)
-            .expect("Failed to open the file.");
+        let file = File::create(&path).expect("Failed to open the file.");
     
         match serde_json::to_writer(file, self) {
             Ok(()) => println!("HashMap serialized and saved successfully."),
@@ -93,7 +120,8 @@ impl Game {
         let shape_gen = ShapeGen::Hexagonal;
         let localities_gen = LocalitiesGen::Random;
         let capitals_gen = CapitalsGen::Random;
-        self.world.generate(&mut self.players, shape_gen, 10, localities_gen, capitals_gen, &mut assets.locality_names.iter().map(|s| &**s).collect());
+        self.world.generate(&mut self.players, shape_gen, 70, localities_gen, capitals_gen, &mut assets.locality_names.iter().map(|s| &**s).collect());
+        println!("{}", self.world.len());
     }
 
     // Clicking on a tile with an army selects it. If the player
@@ -156,7 +184,7 @@ impl Game {
         self.turn += 1;
         println!("Turn {}: {}", self.turn, self.current_player());
     }
-    pub fn update_world(&mut self) {
+    pub fn _update(&mut self) {
         let current_player_index = self.current_player_index();
         if self.players.len() <= 1 {
             println!("{} wins!", self.current_player());
@@ -182,6 +210,21 @@ impl Game {
             }
             self.current_player_mut().skip_turn();
         }
+    }
+}
+
+impl crate::Component for Game {
+    fn draw(&self, &layout: &Layout<f32>, assets: &Assets, time: f32) {
+        crate::draw(&self, &layout, assets, time);
+    }
+    fn poll(&mut self, layout: &mut Layout<f32>) -> bool {
+        crate::poll_inputs(self, layout)
+    }
+    // fn swap(self) -> crate::map_editor::Editor {
+    //     self.into()
+    // }
+    fn update(&mut self) {
+        self._update()
     }
 }
 

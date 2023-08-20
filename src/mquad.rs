@@ -18,10 +18,16 @@ use crate::world::TileCategory;
 
 fn owner_to_color(&owner: &Option<usize>) -> macroquad::color::Color {
     match owner {
-        Some(0) => Color { r: 0.9, g: 0.16, b: 0.22, a: 0.67 },
+        Some(0) => Color { r: 1.0, g: 0., b: 0., a: 0.67 },
         Some(1) => Color { r: 0.0, g: 0.47, b: 0.95, a: 0.67 },
         Some(2) => Color { r: 0.0, g: 0.89, b: 0.19, a: 0.67 },
         Some(3) => Color { r: 0.53, g: 0.24, b: 0.75, a: 0.67 },
+        Some(4) => Color { r: 0.0, g: 0.68, b: 0.67, a: 0.67 },  // tealasia
+        Some(5) => Color { r: 0.86, g: 0.07, b: 0.23, a: 0.67 }, // crimsonia
+        Some(6) => Color { r: 0.0, g: 0.5, b: 1.0, a: 0.67 }, //azurea
+        Some(7) => Color { r: 0.85, g: 0.58, b: 0.87, a: 0.67 }, // lavendara
+        Some(8) => Color { r: 1.0, g: 0.75, b: 0.0, a: 0.67 }, // amberon
+        Some(9) => Color { r: 0.0, g: 0.35, b: 0.71, a: 0.67 }, //cobaltia
         _ => WHITE,
     }
 }
@@ -30,6 +36,7 @@ pub struct Assets {
     pub locality_names: Vec<String>,
     pub font: Font,
     pub army: Texture2D,
+    pub port: Texture2D,
     pub airport: Texture2D,
     pub fields: Texture2D,
     pub water_material: Material,
@@ -73,7 +80,11 @@ impl World {
         army_params.dest_size = Some(Vec2{x: layout.size[0] as f32*1.5, y: layout.size[1] as f32*1.5});
         let mut airport_params = DrawTextureParams::default();
         airport_params.dest_size = Some(Vec2{x: layout.size[0] as f32, y: layout.size[1] as f32});
+        let mut port_params = DrawTextureParams::default();
+        port_params.dest_size = Some(Vec2{x: layout.size[0] as f32 * 0.9, y: layout.size[1] as f32 * 0.9});
+
         let airport_offset = layout.size[0] * 0.5;
+        let port_offset = layout.size[0] * 0.5 * 0.9;
         let x_army_offset = layout.size[0] as f32 * 0.7;
         let y_army_offset = layout.size[1] as f32 * 0.7;
         for (cube, tile) in self.world.iter() {
@@ -98,7 +109,10 @@ impl World {
                     LocalityCategory::Capital => draw_circle(x, y, size/2., RED),
                     LocalityCategory::SatelliteCapital => draw_circle(x, y, size/2., PINK),
                     LocalityCategory::City => draw_circle(x, y, size/2., DARKBROWN),
-                    LocalityCategory::PortCity => draw_circle(x, y, size/2., BLUE),
+                    LocalityCategory::PortCity => {
+                        draw_circle(x, y, size/2., BLUE);
+                        draw_texture_ex(assets.port, x - port_offset, y - port_offset, WHITE, port_params.clone());
+                    },
                     LocalityCategory::Airport => {
                         draw_rectangle(x - size/2., y - size/2., size, size, DARKGREEN);
                         draw_texture_ex(assets.airport, x - airport_offset, y - airport_offset, WHITE, airport_params.clone());
@@ -128,6 +142,7 @@ impl World {
 
 
 pub fn draw(game: &Game, &layout: &Layout<f32>, assets: &Assets, time: f32) {
+    macroquad::prelude::clear_background(macroquad::prelude::DARKGRAY);
     let has_selection = game.current_player().selection.is_some();
     game.world.draw_base_tiles(&layout, &assets, time);
     game.world.draw_game_tiles(&layout, &assets);

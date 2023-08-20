@@ -2,5 +2,6 @@
 ignore*
 .vscode
 assets/saves/*
-assets/maps/*
+assets/scenarios/*
 pixels.rs
+flamegraph*.svg

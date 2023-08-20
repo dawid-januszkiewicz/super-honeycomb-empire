@@ -56,6 +56,9 @@ pub struct AI {
 }
 
 impl AI {
+    pub fn new() -> Self {
+        AI{scores: DEFAULT_SCORES}
+    }
     fn match_tile_category_score(&self, category: &TileCategory) -> i32 {
         match category {
             TileCategory::Farmland => self.scores.farmland,

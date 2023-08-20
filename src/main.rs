@@ -15,13 +15,20 @@ use game::*;
 use world::*;
 use inputs::*;
 use map_editor::*;
-use std::{collections::{HashMap, HashSet}, fs::File};
+use std::fs::File;
 // use crate::pixels::*;
 use mquad::*;
 use macroquad::prelude::*;
 
 const WATER_FRAGMENT_SHADER: &'static str = include_str!("../assets/water_fragment_shader.glsl");
 const WATER_VERTEX_SHADER: &'static str = include_str!("../assets/water_vertex_shader.glsl");
+
+pub trait Component {
+    fn poll(&mut self, layout: &mut Layout<f32>) -> bool;
+    fn draw(&self, layout: &Layout<f32>, assets: &Assets, time: f32);
+    fn update(&mut self);
+    // fn swap(self) -> dyn Component;
+}
 
 async fn load_assets() -> Assets {
     let f = File::open("assets/cities.json").expect("file should open read only");
@@ -33,6 +40,7 @@ async fn load_assets() -> Assets {
 
     let font = load_ttf_font("assets/Iceberg-Regular.ttf").await.unwrap();
     let army: Texture2D = load_texture("assets/army.png").await.unwrap();
+    let port: Texture2D = load_texture("assets/port.png").await.unwrap();
     let airport: Texture2D = load_texture("assets/airport.png").await.unwrap();
     let fields = load_texture("assets/grass.png").await.expect("Failed to load texture");
     let water_material = load_material(
@@ -46,7 +54,7 @@ async fn load_assets() -> Assets {
             ..Default::default()
         },
     ).unwrap();
-    Assets{locality_names, font, army, airport, fields, water_material}
+    Assets{locality_names, font, army, port, airport, fields, water_material}
 }
 
 fn window_conf() -> Conf {
@@ -57,12 +65,7 @@ fn window_conf() -> Conf {
     }
 }
 
-#[macroquad::main(window_conf)]
-async fn main() {
-    let mut assets = load_assets().await;
-
-    run_editor(&assets).await;
-
+fn new_game(assets: &mut Assets) -> Game {
     let ai1 = AI{scores: DEFAULT_SCORES};
     let ai2 = AI{scores: DEFAULT_SCORES};
     let ai3 = AI{scores: DEFAULT_SCORES};
@@ -76,7 +79,7 @@ async fn main() {
 
     let players = vec![player1, player2, player3, player4];
 
-    let mut world = World::new();
+    let world = World::new();
 
     // save_map(&game.world.world);
     // let mut world = World::from_json("assets/maps/map.json");
@@ -86,39 +89,30 @@ async fn main() {
         turn: 1,
         players,
         world,
-        victory_condition: game::VictoryCondition::Territory(0.85)
+        victory_condition: game::VictoryCondition::Territory(0.30)
     };
 
-    game.init_world(&mut assets);
+    game.init_world(assets);
+    game
+}
 
-    let size = [32.,32.];
-    // let size = [0.1,0.1]; // use this if in local coords
-    let origin = [300., 300.];//[100.,600.];//[100.,300.];
-    let mut layout = cubic::Layout{orientation: cubic::OrientationKind::Flat(cubic::FLAT), size, origin};
-
-    assets.water_material.set_uniform("RectSize", (size[0], size[1]));
-
+async fn game_loop(game: &mut Game, layout: &mut Layout<f32>, assets: &Assets) {
     let mut is_yet_won = false;
-
-    let camera = &Camera2D {
-        // zoom: vec2(0.001, 0.001),
-        // offset: vec2(-0.5,-0.1),
-        zoom: vec2(1., -1.),
-        ..Default::default()
-    };
-
-    // set_camera(camera);
 
     let mut time = 0.0;
 
     while !is_yet_won {
         clear_background(DARKGRAY);
 
-        poll_inputs(&mut game, &mut layout);
+        poll_inputs(game, layout);
+
+        if is_key_pressed(KeyCode::F1) {
+            break
+        }
 
         draw(&game, &layout, &assets, time);
     
-        game.update_world();
+        game.update();
 
         is_yet_won = game.victory_condition.check(&game.world, game.current_player_index());
 
@@ -126,5 +120,83 @@ async fn main() {
         time += get_frame_time();
     }
     println!("Player {} won!", game.current_player_index());
+}
+
+// struct App<T: Component>(T);
+
+// fn get_app<T: Component>(assets: &mut Assets) -> dyn Component {
+//     new_game(assets)
+// }
+
+enum State {
+    Game,
+    Editor,
+}
+
+#[macroquad::main(window_conf)]
+async fn main() {
+    let mut assets = load_assets().await;
+
+    // run_editor(&assets).await;
+
+    let mut game = new_game(&mut assets);
+    let mut editor = Editor::new(World::new(), vec!());
+
+    let mut state = State::Game;
+    let mut app: &mut dyn Component = &mut game;
+
+
+    // let app: &mut dyn Component = &mut match state {
+    //     State::Game(game) => game,
+    //     State::Editor(editor) => editor,
+    // };//&mut game;
+
+    // let app: &mut dyn Component = &mut game;
+
+    let size = [32.,32.];
+    let origin = [300., 300.];
+    let mut layout = cubic::Layout{orientation: cubic::OrientationKind::Flat(cubic::FLAT), size, origin};
+
+    assets.water_material.set_uniform("RectSize", (size[0], size[1]));
+
+    let mut time = 0.0;
+    let mut exit = false;
+    while !exit {
+        app.draw(&mut layout, &mut assets, time);
+        exit = app.poll(&mut layout);
+        next_frame().await;
+        app.update();
+        if is_key_pressed(KeyCode::F1) {
+            match state {
+                State::Game => {
+                    editor = game.into();
+                    game = Game{turn: 0, players: vec!(), world: World::new(), victory_condition: VictoryCondition::Elimination};
+                    app = &mut editor;
+                    state = State::Editor;
+                }
+                State::Editor => {
+                    game = editor.into();
+                    editor = Editor::new(World::new(), vec!());
+                    app = &mut game;
+                    state = State::Game;
+                }
+            }
+            // editor = game.into::<Editor>();
+        }
+        time += get_frame_time();
+        // game_loop(&mut game, &mut layout, &assets).await;
+        // run_editor(&assets).await;
+    }
 
 }
+
+
+// let size = [0.1,0.1]; // use this if in local coords
+// let camera = &Camera2D {
+//     // zoom: vec2(0.001, 0.001),
+//     // offset: vec2(-0.5,-0.1),
+//     zoom: vec2(1., -1.),
+//     ..Default::default()
+// };
+
+// // set_camera(camera);
