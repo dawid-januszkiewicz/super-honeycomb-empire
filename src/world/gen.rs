@@ -17,12 +17,17 @@ use crate::TileCategory;
 use crate::Cube;
 use crate::Locality;
 use crate::LocalityCategory;
+use crate::cubic::Layout;
+use crate::cubic::OrientationKind;
+use crate::cubic::pixel_to_cube;
 use super::extend_borders;
 // use crate::cubic::Layout;
 // use crate::cubic::POINTY;
 // use crate::cubic::FLAT;
 
 extern crate rand;
+use macroquad::shapes::draw_line;
+use macroquad::shapes::draw_poly_lines;
 use rand::Rng;
 use rand::random;
 use rand::seq::index::sample;
@@ -45,6 +50,7 @@ pub enum LocalitiesGen {
 pub enum ShapeGen {
     Classic,
     Hexagonal,
+    Custom(Vec<(f32, f32)>),
 }
 
 impl World {
@@ -83,10 +89,14 @@ impl World {
         }
     }
 
-    fn choose_shape_gen(&mut self, shape: ShapeGen, radius: i32) {
+    fn choose_shape_gen(&mut self, shape: ShapeGen, radius: i32, init_layout: &crate::cubic::Layout<f32>) {
         match shape {
             ShapeGen::Classic => self.gen_classic_shape(),
             ShapeGen::Hexagonal => self.gen_hexagonal_shape(radius),
+            ShapeGen::Custom(shape) => {
+                let my_shape_map = World::from_shape(shape, init_layout);
+                self.gen_custom_shape(my_shape_map);
+            }
         }
     }
 
@@ -261,8 +271,17 @@ impl World {
         }
     }
 
-    pub fn generate(&mut self, players: &mut Vec<Player>, shape_gen: ShapeGen, radius: i32, localities_gen: LocalitiesGen, capitals_gen: CapitalsGen, locality_names: &mut Vec<&str>) {
-        self.choose_shape_gen(shape_gen, radius);
+    pub fn generate(
+        &mut self,
+        players: &mut Vec<Player>,
+        shape_gen: ShapeGen,
+        radius: i32,
+        localities_gen: LocalitiesGen,
+        capitals_gen: CapitalsGen,
+        locality_names: &mut Vec<&str>,
+        init_layout: &crate::cubic::Layout<f32>,
+    ) {
+        self.choose_shape_gen(shape_gen, radius, init_layout);
         self.gen_water();
         self.choose_localities_gen(localities_gen, locality_names);
         self.choose_capitals_gen(capitals_gen, players, locality_names);
@@ -270,19 +289,295 @@ impl World {
 }
 
 impl World {
-    // fn from_shape(shape: Vec<(i32, i32)>, layout: crate::cubic::Layout<i32>) {
-    //     let x_max = shape.iter().map(|p| p.0).max().unwrap();
-    //     let x_min = shape.iter().map(|p| p.0).min().unwrap();
-    //     let y_max = shape.iter().map(|p| p.1).max().unwrap();
-    //     let y_min = shape.iter().map(|p| p.1).min().unwrap();
-    //     let bounding_box = [(x_min, y_min), (x_max, y_max)];
+    pub fn draw_shape_outline(mut shape: Vec<(f32, f32)>, layout: &crate::cubic::Layout<f32>, init_layout: &crate::cubic::Layout<f32>) {
+        shape.push(shape[0]);
+        for j in 1..shape.len() {
+            let i = j - 1;
+            let (mut x1, mut y1) = shape[i];
+            let (mut x2, mut y2) = shape[j];
+            x1 *= layout.size[0] / init_layout.size[0];
+            x2 *= layout.size[0] / init_layout.size[0];
+            y1 *= layout.size[1] / init_layout.size[1];
+            y2 *= layout.size[1] / init_layout.size[1];
+            x1 += layout.origin[0];
+            x2 += layout.origin[0];
+            y1 += layout.origin[1];
+            y2 += layout.origin[1];
+            draw_line(x1, y1, x2, y2, 3., macroquad::color::BLACK);
+        }
+    }
+    //' A regular hexagonal grid is drawn over the shape.
+    //' If the center of a cell falls inside the shape, it's included in the map.
+    //' The grid is then moved around so as to minimise certain metrics, with the aim of
+    //' maximising the resultant shape's resemblance to the input shape.
+    fn from_shape(mut shape: Vec<(f32, f32)>, layout: &crate::cubic::Layout<f32>) -> HashSet<Cube<i32>> {
+        // use fold if working w floats: https://stackoverflow.com/questions/28446632/how-do-i-get-the-minimum-or-maximum-value-of-an-iterator-containing-floating-poi
+        // let x_max = shape.iter().map(|p| p.0).max().unwrap();
+        // let x_min = shape.iter().map(|p| p.0).min().unwrap();
+        // let y_max = shape.iter().map(|p| p.1).max().unwrap();
+        // let y_min = shape.iter().map(|p| p.1).min().unwrap();
+        // let bounding_box = [(x_min, y_min), (x_max, y_max)];
+        // shape = shape.iter().map(|(x, y)| (x - layout.size[0], y - layout.size[1])).collect();
 
-    //     let map : HashSet<(i32, i32)> = HashSet::new();
-    //     // generate a map over the entire bounding box
+        let x_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.0));
+        let y_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.1));
+        // shape = shape.iter().map(|(x, y)| (x - x_min, y - y_min)).collect();
+        let x_max = shape.iter().fold(f32::NAN, |a, &b| a.max(b.0));
+        let y_max = shape.iter().fold(f32::NAN, |a, &b| a.max(b.1));
+        let bounding_box = [(x_min, y_min), (x_max, y_max)];
+        println!("bounding box: {:?}", bounding_box);
 
-    //     //overlapping_subset = 
+        let (mut x_factor, mut y_factor) = (1.5, f32::sqrt(3.));
+        if matches!(layout.orientation, OrientationKind::Pointy(_)) {
+            (x_factor, y_factor) = (y_factor, x_factor);
+        }
 
-    //     //let starting_point = bounding_box[0];
-    //     //let 
-    // }
+        let width = ((x_max - x_min) / (layout.size[0] * x_factor)).ceil() as i32;
+        let height = ((y_max - y_min) / (layout.size[1] * y_factor)).ceil() as i32;
+        println!("layout size: {:?}", layout.size);
+        println!("width: {}, height: {}", width, height);
+        // let bounding_box_c: Vec<Cube<i32>> = bounding_box.iter().map(|&(x, y)| crate::pixel_to_cube(&layout, [x, y]).round()).collect();
+        // let start = -bounding_box_c[0].q();
+
+        // convert to Cube coords at end?
+        //let mut map : HashSet<(i32, i32)> = HashSet::new();
+        // for dx in {bounding_box[0].0..bounding_box[1].0}.step_by(layout.size[0] as usize) {
+        //     for dy in {bounding_box[0].1..bounding_box[1].1}.step_by(layout.size[1] as usize) {
+
+        //     }
+        // }
+        // generate a map over the entire bounding box
+        // let shape_cubic: HashSet<Cube<i32>> = shape.iter().map(|(x,y)| {
+        //     pixel_to_cube(&layout, [*x, *y]).round()
+        // }).collect();
+        // let q_max = shape_cubic.iter().map(|p| p.q()).max().unwrap();
+        // let q_min = shape_cubic.iter().map(|p| p.q()).min().unwrap();
+        // let r_max = shape_cubic.iter().map(|p| p.r()).max().unwrap();
+        // let r_min = shape_cubic.iter().map(|p| p.r()).min().unwrap();
+        // let bounding_box = [(q_min, r_min), (q_max, r_max)];
+        let mut map : HashSet<Cube<i32>> = HashSet::new();
+        // layout.orientation = FLAT
+        // layout.origin = (-10.0, 10.0)
+        // let width = i32::abs_diff(q_max, q_min) as i32;//20;//(q_max - q_min).abs();
+        // let height = r_max;//i32::abs_diff(r_max, r_min) as i32;//20;//(r_max - r_min).abs();
+        // println!("{:?}", bounding_box);
+
+        // // Define the vertices of your irregular polygon
+        // let shape = vec![(0.0, 0.0), (4.0, 0.0), (3.0, 3.0), (1.0, 2.0)];
+
+        // // Define the point to check
+        // let x = 2.0;
+        // let y = 1.0;
+
+        // // Check if the point is inside the polygon
+        // let is_inside = is_point_inside_polygon(&shape, x, y);
+
+        // if is_inside {
+        //     println!("Point ({}, {}) is inside the polygon.", x, y);
+        // } else {
+        //     println!("Point ({}, {}) is outside the polygon.", x, y);
+        // }
+
+        // let point = [324.0, -924.0];
+        // let result = is_inside_polygon(&shape, point);
+        // println!("Is the point inside the polygon? {}", result);
+
+        match layout.orientation {
+            OrientationKind::Flat(_) => {
+                for q in 0..width {
+                    let q_offset = q >> 1;
+                    for r in (-1 * q_offset)..(height - q_offset) {
+                        // map.insert(Cube::new(q,r));
+                        let cube = Cube::new(q as f32,r as f32);
+                        let mut pos = cube.to_pixel(layout);
+                        pos[0] += x_min;
+                        pos[1] += y_min;
+                        if is_inside_polygon(&shape, pos) {
+                            map.insert(Cube::new(q, r));
+                        } else {
+                            // println!{"not inside: {:?}, {:?}", cube, pos}
+                        }
+                    }
+                }
+            }
+            OrientationKind::Pointy(_) => {
+                for r in 0..height {
+                    let r_offset = r >> 1;
+                    for q in (-1 * r_offset)..(width - r_offset) {
+                        map.insert(Cube::new(q,r));
+                        let cube = Cube::new(q as f32,r as f32);
+                        let mut pos = cube.to_pixel(layout);
+                        // pos[0] += x_min;
+                        // pos[1] += y_min;
+                        // if is_inside_polygon(&shape, pos) {
+                        //     map.insert(Cube::new(q, r));
+                        // }
+                    }
+                }
+            }
+        }
+
+        println!("map: {:?}", map);
+        println!("map len: {}", map.len());
+        map
+        
+
+        //overlapping_subset = 
+
+        //let starting_point = bounding_box[0];
+        //let 
+    }
+
+    fn gen_custom_shape(&mut self, shape: HashSet<Cube<i32>>) {
+        shape.iter().for_each(|cube| self.insert(*cube, Tile::new(TileCategory::Farmland)));
+    }
 }
+
+// fn is_inside_polygon(polygon: &Vec<(f32, f32)>, point: [f32; 2]) -> bool {
+//     // let mut polygon = polygon.clone();
+//     // polygon.reverse();
+//     let mut count = 0;
+//     let (px, py) = (point[0], point[1]);
+//     let mut j = polygon.len() - 1; // Initialize j as the last vertex
+
+//     // Loop through each edge of the polygon
+//     for i in 0..polygon.len() {
+//         let (x1, y1) = polygon[i];
+//         let (x2, y2) = polygon[j];
+        
+//         // Check if the ray from point crosses this edge
+//         if ((y1 > py) != (y2 > py)) && (px < (x2 - x1) * (py - y1) / (y2 - y1) + x1) {
+//             count += 1;
+//         }
+        
+//         j = i; // Update j
+//     }
+
+//     // Odd number of crossings means the point is inside the polygon
+//     count % 2 == 1
+// }
+
+// fn is_inside_polygon(polygon: &Vec<(f32, f32)>, point: [f32; 2]) -> bool {
+//     let (px, py) = (point[0], point[1]);
+//     let mut inside = false;
+//     let mut j = polygon.len() - 1;
+
+//     for i in 0..polygon.len() {
+//         let (xi, yi) = polygon[i];
+//         let (xj, yj) = polygon[j];
+
+//         if (yi < py && yj >= py || yj < py && yi >= py) && (xi <= px || xj <= px) {
+//             if xi + (py - yi) / (yj - yi) * (xj - xi) < px {
+//                 inside = !inside;
+//             }
+//         }
+
+//         j = i;
+//     }
+
+//     inside
+// }
+
+fn is_inside_polygon(polygon: &Vec<(f32, f32)>, point: [f32;2]) -> bool {
+    let (px, py) = (point[0], point[1]);
+    let mut inside = false;
+    let mut j = polygon.len() - 1;
+
+    for i in 0..polygon.len() {
+        let (xi, yi) = polygon[i];
+        let (xj, yj) = polygon[j];
+
+        if (yi < py && yj >= py || yj < py && yi >= py) && (xi <= px || xj <= px) {
+            if xi + (py - yi) / (yj - yi) * (xj - xi) < px {
+                inside = !inside;
+            }
+        }
+
+        j = i;
+    }
+
+    inside
+}
+
+// fn is_inside_polygon(polygon: &Vec<(f32, f32)>, point: [f32; 2]) -> bool {
+//     let mut polygon = polygon.clone();
+//     polygon.reverse();
+//     let num_vertices = polygon.len();
+//     if num_vertices < 3 {
+//         return false; // A polygon with less than 3 vertices is not valid.
+//     }
+
+//     let mut inside = false;
+//     let (x, y) = (point[0], point[1]);
+
+//     // Iterate through each edge of the polygon.
+//     for i in 0..num_vertices {
+//         let j = (i + 1) % num_vertices; // Next vertex index.
+
+//         let xi = polygon[i].0;
+//         let yi = polygon[i].1;
+//         let xj = polygon[j].0;
+//         let yj = polygon[j].1;
+
+//         // Check if the point is to the left of the edge.
+//         // let intersect = ((yi > y) != (yj > y))
+//         //     && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+//         let intersect = (yi >= y && yj < y) || (yj >= y && yi < y) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+
+//         if intersect {
+//             inside = !inside;
+//         }
+//     }
+
+//     return inside;
+// }
+
+
+fn is_point_inside_polygon(shape: &Vec<(f32, f32)>, point: [f32; 2]) -> bool {
+    // let mut shape = shape.clone();
+    // shape.reverse();
+    let (x, y) = (point[0], point[1]);
+    let num_vertices = shape.len();
+    let mut inside = false;
+    // let mut j = num_vertices - 1;
+
+    for i in 0..num_vertices {
+        let (xi, yi) = shape[i];
+        let (xj, yj) = shape[(i + 1) % num_vertices];
+
+        if f32::min(yi, yj) < y && y <= f32::max(yi, yj) && x <= f32::max(xi, xj) {
+            let mut x_intersection = xi;
+            if yi != yj {
+                x_intersection = (y - yi) * (xj - xi) / (yj - yi) + xi;
+            }
+            if xi == xj || x <= x_intersection {
+                inside = ! inside
+            }
+        }
+        // if ((yi > y) != (yj > y))
+        //     && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+        // {
+        //     inside = !inside;
+        // }
+
+        // j = i;
+    }
+
+    inside
+}
+
+// def is_point_inside_polygon(x, y, polygon):
+//     n = len(polygon)
+//     inside = False
+
+//     for i in range(n):
+//         x1, y1 = polygon[i]
+//         x2, y2 = polygon[(i + 1) % n]
+
+//         if min(y1, y2) < y <= max(y1, y2) and x <= max(x1, x2):
+//             if y1 != y2:
+//                 x_intersection = (y - y1) * (x2 - x1) / (y2 - y1) + x1
+//             if x1 == x2 or x <= x_intersection:
+//                 inside = not inside
+
+//     return inside

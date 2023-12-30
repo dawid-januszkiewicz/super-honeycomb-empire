@@ -8,6 +8,7 @@ mod ai;
 mod mquad;
 mod inputs;
 mod map_editor;
+mod river;
 
 use ai::*;
 use cubic::*;
@@ -15,7 +16,7 @@ use game::*;
 use world::*;
 use inputs::*;
 use map_editor::*;
-use std::fs::File;
+use std::{fs::File, f32::consts::PI};
 // use crate::pixels::*;
 use mquad::*;
 use macroquad::prelude::*;
@@ -54,7 +55,47 @@ async fn load_assets() -> Assets {
             ..Default::default()
         },
     ).unwrap();
-    Assets{locality_names, font, army, port, airport, fields, water_material}
+    let size = [32.,32.];
+    let origin = [0., 0.];
+    let init_layout = cubic::Layout{orientation: cubic::OrientationKind::Flat(cubic::FLAT), size, origin};
+    
+    water_material.set_uniform("RectSize", (init_layout.size[0], init_layout.size[1]));
+    //let shape = vec!((300.,10.), (1000., 100.), (1000., 500.), (5000., 500.), (5000., 100.), (300., 10.));
+    //let v: serde_json::Value = serde_json::from_str(data).unwrap();
+    // let shape: Vec<(f32, f32)> = serde_json::from_str(data).unwrap();
+    // Open the CSV file
+    let file = File::open("assets/shapes/ua-100k.csv").unwrap();
+    let mut rdr = csv::Reader::from_reader(file);
+
+    // Create a Vec<(f32, f32)> to store the data
+    let mut shape: Vec<(f32, f32)> = Vec::new();
+
+    // Iterate over each record in the CSV and parse the values
+    for (idx, result) in rdr.records().enumerate() {
+        let record = result.unwrap();
+        let first_value: f32 = record.get(0).unwrap().parse().unwrap();
+        let second_value: f32 = record.get(1).unwrap().parse().unwrap();
+        let vertex_part: i32 = record.get(12).unwrap().parse().unwrap();
+        let vertex_part_ring: i32 = record.get(13).unwrap().parse().unwrap();
+
+        let r = 6371000.0 / 500.; //1:250 is nearly max
+        let y = r * ((std::f32::consts::PI/4.) + (second_value.to_radians()/2.)).tan().ln();
+        let x = r * first_value.to_radians();
+        
+        if vertex_part == 158 && vertex_part_ring == 0 {
+            // shape.push((first_value * r, second_value*(-1.) * r));
+            shape.push((x, y * -1.));
+        }
+        //  if idx > 50000 {break}
+    }
+    //println!("{:?}", shape);
+    //let shape = vec!((0.,0.), (500., -950.), (1000., 0.), (1000.,-1000.), (500., -950.), (0.,-1000.));
+    // let shape = vec!((0.,0.), (1000., 0.), (1000.,-1000.), (0.,-1000.));
+    // let (min_x, min_y) = shape.iter().fold(0., |init: f32, (x, y)| (init.min(x), init.min(y)));
+    // let min_x = shape.iter().fold(0., |init: f32, (x, y)| init.min(*x));
+    // let min_y = shape.iter().fold(0., |init: f32, (x, y)| init.min(*y));
+
+    Assets{locality_names, font, army, port, airport, fields, water_material, init_layout, shape}
 }
 
 fn window_conf() -> Conf {
@@ -73,11 +114,12 @@ fn new_game(assets: &mut Assets) -> Game {
 
     // let player1 = Player::new("Redosia", Some(ai1));
     let player1 = Player::new("Redosia", None);
-    let player2 = Player::new("Bluegaria", Some(ai2));
-    let player3 = Player::new("Greenland", Some(ai3));
-    let player4 = Player::new("Violetnam", Some(ai4));
+    let player2 = Player::new("Bluekraine", Some(ai2)); // Umberaine?
+    // let player2 = Player::new("Bluegaria", Some(ai2));
+    // let player3 = Player::new("Greenland", Some(ai3));
+    // let player4 = Player::new("Violetnam", Some(ai4));
 
-    let players = vec![player1, player2, player3, player4];
+    let players = vec![player1, player2, ];//player3, player4];
 
     let world = World::new();
 
@@ -142,6 +184,9 @@ async fn main() {
     let mut game = new_game(&mut assets);
     let mut editor = Editor::new(World::new(), vec!());
 
+    // let river = crate::river::generate_river(game.world.keys().collect());
+    // println!("river: {:?}", river);
+
     let mut state = State::Game;
     let mut app: &mut dyn Component = &mut game;
 
@@ -153,11 +198,7 @@ async fn main() {
 
     // let app: &mut dyn Component = &mut game;
 
-    let size = [32.,32.];
-    let origin = [300., 300.];
-    let mut layout = cubic::Layout{orientation: cubic::OrientationKind::Flat(cubic::FLAT), size, origin};
-
-    assets.water_material.set_uniform("RectSize", (size[0], size[1]));
+    let mut layout = assets.init_layout.clone();
 
     let mut time = 0.0;
     let mut exit = false;

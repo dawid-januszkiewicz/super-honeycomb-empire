@@ -4,6 +4,7 @@ use crate::Cube;
 use crate::DIRECTIONS;
 use crate::AI;
 
+use std::char::MAX;
 use std::collections::HashSet;
 use std::collections::HashMap;
 
@@ -21,7 +22,7 @@ use std::cmp::min;
 use serde::{Serialize, Deserialize};
 use strum::EnumIter;
 
-const ACTIONS_PER_TURN: i32 = 5;
+pub const ACTIONS_PER_TURN: i32 = 5;
 const MAX_TRAVEL_DISTANCE: i32 = 2;
 const EXTEND_BORDERS_DISTANCE: usize = 1;
 pub const MAX_STACK_SIZE: i32 = 99;
@@ -257,14 +258,12 @@ impl Army {
     }
     // Grow the army up to MAX_STACK_SIZE, and return any growth overflow.
     pub fn grow(&mut self, manpower: i32) -> i32 {
-        let new_manpower = self.manpower + manpower;
-        self.manpower = min(MAX_STACK_SIZE, new_manpower);
-        self.morale = min(MAX_STACK_SIZE, self.morale + (manpower as f32 /2.).round() as i32); // I think this will be buggy, as morale will continue to grow each turn in proportion to no of tiles owned.
-        if new_manpower > MAX_STACK_SIZE {
-            new_manpower - MAX_STACK_SIZE
-        } else {
-            0
-        }
+        let growth_capacity = MAX_STACK_SIZE - self.manpower;
+        let actual_growth = min(growth_capacity, manpower);
+        self.manpower += actual_growth;
+        self.morale = min(MAX_STACK_SIZE, self.morale + (actual_growth as f32 /2.).round() as i32);
+        manpower - actual_growth
+        // min(self.manpower + manpower - MAX_STACK_SIZE, 0) == manpower - min(MAX_STACK_SIZE - self.manpower, manpower)
     }
     // fn update_morale() ?
     fn apply_morale_bonus(&mut self, bonus: i32) {
@@ -297,6 +296,8 @@ pub struct World {
     pub cubes_by_ownership: HashMap<usize, HashSet<Cube<i32>>>,
     // #[serde(skip)]
     pub cubes_with_airport: HashSet<Cube<i32>>,
+    // #[serde(skip)]
+    pub rivers: HashSet<crate::river::CubeSide>,
 }
 
 impl Serialize for World {
@@ -330,10 +331,13 @@ impl<'de> Deserialize<'de> for World {
             }
         });
 
+        let rivers = HashSet::new();
+
         Ok(World {
             world,
             cubes_by_ownership,
             cubes_with_airport,
+            rivers,
         })
     }
 }
@@ -373,6 +377,7 @@ impl World {
             world: HashMap::new(),
             cubes_by_ownership: HashMap::new(),
             cubes_with_airport: HashSet::new(),
+            rivers: HashSet::new(),
         }
     }
     pub fn insert(&mut self, key: Cube<i32>, value: Tile) {
@@ -618,55 +623,55 @@ impl World {
 
     pub fn train_armies(&mut self, &player_index: &usize) {
         let (world, cubes_by_ownership) = self.split_fields();
-        let mut player_cubes = cubes_by_ownership.get(&player_index).unwrap();//.into_iter().flatten().collect::<HashSet<&Cube<i32>>>();
-        let locality_cubes: HashSet<Cube<i32>> = world.iter().filter(|(c, t)| t.locality.is_some()).map(|(c, t)| *c).collect();
-        let player_cubes_w_locality: HashSet<_> = player_cubes.intersection(&locality_cubes).collect();
-        let player_cubes = player_cubes_w_locality;
+        if !cubes_by_ownership.get(&player_index).is_some() {return} // TODO: make this redundant in the future
+        let player_cubes = cubes_by_ownership.get(&player_index).unwrap();//.into_iter().flatten().collect::<HashSet<&Cube<i32>>>();
+        let mut bonus_growth = player_cubes.len() as i32 * BONUS_GROWTH_PER_TILE;
+        let mut locality_cubes: HashSet<Cube<i32>> = world.iter().filter(|(c, t)| t.locality.is_some()).map(|(c, t)| *c).collect();
+        let player_cubes_w_locality: HashSet<Cube<i32>> = player_cubes.iter().filter_map(|v| locality_cubes.take(v)).collect(); // inplace intersetction
 
         // First apply base growth
-        for cube in player_cubes.iter() {
-            let mut tile = world.get_mut(cube).unwrap();
-            let mut growth = 0;
-            match &tile.locality {
+        for cube in player_cubes_w_locality.iter() {
+            let tile = world.get_mut(cube).unwrap();
+            let growth = match &tile.locality {
                 Some(locality) => match &locality.category {
-                    LocalityCategory::City => growth = BASE_GROWTH_CITY,
-                    LocalityCategory::PortCity => growth = 0,
-                    LocalityCategory::Airport => growth = 0,
-                    LocalityCategory::Capital => growth = BASE_GROWTH_CAPITAL,
-                    LocalityCategory::SatelliteCapital => growth = BASE_GROWTH_SATELLITE_CAPITAL,
+                    LocalityCategory::City => BASE_GROWTH_CITY,
+                    LocalityCategory::PortCity => continue,
+                    LocalityCategory::Airport => continue,
+                    LocalityCategory::Capital => BASE_GROWTH_CAPITAL,
+                    LocalityCategory::SatelliteCapital => BASE_GROWTH_SATELLITE_CAPITAL,
                 }
                 _ => {continue},
-            }
-            if growth > 0 { // redundant?
-                match &mut tile.army {
-                    Some(army) => {
-                        army.grow(growth);
-                    }
-                    None => {
-                        tile.army = Some(Army::new(growth, tile.owner_index));
-                    }
+            };
+            match &mut tile.army {
+                Some(army) => {
+                    army.grow(growth);
+                }
+                None => {
+                    tile.army = Some(Army::new(growth, tile.owner_index));
                 }
             }
         }
 
         // Then apply bonus growth
-        let mut bonus_growth = player_cubes.len() as i32 * BONUS_GROWTH_PER_TILE;
-        let mut tiles_with_max_army_stack = HashSet::new();
-        for cube in player_cubes.iter().cycle() {
-            // break if we can't apply the bonus anywhere, or we run out
-            if player_cubes.difference(&tiles_with_max_army_stack).collect::<HashSet<_>>().len() == 0 || bonus_growth <= 0 {
-                break;
-            }
-            let tile = world.get_mut(&cube).unwrap();
-            match &tile.locality {
-                Some(locality) => match &mut tile.army {
-                    Some(army) if army.manpower < MAX_STACK_SIZE => {
-                        let overflow = army.grow(2); // ideally 1, but here 2 so we grow morale by a whole number.
-                        bonus_growth -= (2 - overflow);
-                    }
-                    _ => {tiles_with_max_army_stack.insert(*cube);}
-                }
-                None => {tiles_with_max_army_stack.insert(*cube);}
+        let army_cubes: HashSet<Cube<i32>> = world.iter().filter(|(_, t)| 
+            t.army.as_ref().is_some_and(|a| 
+                a.manpower < MAX_STACK_SIZE)).map(|(c, _)| *c).collect();
+        let mut player_cubes_w_locality_n_army: HashSet<_> = player_cubes_w_locality.intersection(&army_cubes).collect();
+        
+        while player_cubes_w_locality_n_army.len() > 0 && 
+              bonus_growth > player_cubes_w_locality_n_army.len() as i32 {
+            let growth = bonus_growth / player_cubes_w_locality_n_army.len() as i32;
+            let growth_remainder = bonus_growth % player_cubes_w_locality_n_army.len() as i32;
+            let mut cubes_to_remove: Vec<&Cube<i32>> = vec!();
+            let overflow = player_cubes_w_locality_n_army.iter().fold(
+                0, |acc, c| {
+                    let overflow = world.get_mut(c).unwrap().army.as_mut().unwrap().grow(growth);
+                    if overflow > 0 {cubes_to_remove.push(&c)};
+                    acc + overflow
+                });
+            bonus_growth = growth_remainder + overflow;
+            for c in cubes_to_remove {
+                player_cubes_w_locality_n_army.remove(c);
             }
         }
     }

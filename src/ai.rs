@@ -155,13 +155,16 @@ impl AI {
     }
 
     /// Explores the scores a tile containing an army can achieve for all valid targets.
-    fn explore_targets(&self, own_player_index: &usize, world: &World, origin: &Cube<i32>) -> Vec<ScoredMove> {
-        let mut result = Vec::new();
+    fn explore_targets(&self, own_player_index: &usize, world: &World, origin: &Cube<i32>) -> Option<ScoredMove> {
+        //let mut results = Vec::new();
         let valid_targets = world.get_reachable_cubes(&origin);
+        let prev_score = 0;
+        let mut result = None;
         for target in valid_targets {
             let score = self.calculate_score(&own_player_index, world, &origin, &target);
-            let element = ScoredMove{score, origin: *origin, target};
-            result.push(element);
+            if score > prev_score {result = Some(ScoredMove{score, origin: *origin, target});}
+            // let element = ScoredMove{score, origin: *origin, target};
+            // results.push(element);
             //return result; // can only move each army once, how to handle?
         }
         result
@@ -170,11 +173,12 @@ impl AI {
     /// Score every likely useful player move.
     fn create_target_list(&self, own_player_index: &usize, world: &World) -> Vec<ScoredMove> {
         let subset = self.create_owned_armies_world_subset(&own_player_index, &world); // this only returns 'useful' armies
-        let mut target_list = Vec::new();
+        let mut target_list = vec!();
         for origin in subset {
-            target_list.append(&mut self.explore_targets(&own_player_index, &world, &origin))
+            target_list.push(self.explore_targets(&own_player_index, &world, &origin))
+            //target_list.append(&mut self.explore_targets(&own_player_index, &world, &origin))
         }
-        target_list
+        target_list.into_iter().flatten().collect::<Vec<ScoredMove>>()
     }
 
     /// Based on the target list, pick generate the most optimal targets.

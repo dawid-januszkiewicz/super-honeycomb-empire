@@ -6,6 +6,7 @@ use num::Signed;
 use std::collections::HashSet;
 use std::ops::Add;
 use std::ops::AddAssign;
+use std::ops::Neg;
 use std::ops::Sub;
 use std::ops::Mul;
 use std::ops::Div;
@@ -24,7 +25,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Default, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Cube<T>(T, T);
 
-impl<T> Cube<T> where T: Copy + Signed {
+impl<T> Cube<T> where T: Copy {
     pub fn new(q: T, r: T) -> Self {
         Self(q,r)
     }
@@ -36,7 +37,9 @@ impl<T> Cube<T> where T: Copy + Signed {
     pub fn r(&self) -> T {
         self.1
     }
+}
 
+impl<T> Cube<T> where T: Copy + Signed {
     pub fn s(&self) -> T {
         -self.0 - self.1
     }
@@ -283,10 +286,22 @@ impl<T> Cube<T> where T: Copy + Signed + Div<i32, Output=T> { // , Cube<T>: From
     }
 }
 
-// pretend it's a 2x3 matrix
+// pretend DIRECTIONS is a 2x3 matrix
+//      6th
+//      ___
+// 5th /   \ 1st
+// 4th \   / 2nd
+//      ---
+//      3rd
 pub const DIRECTIONS: [Cube<i32>; 6] = [
     Cube(1, -1), Cube(1, 0), Cube(0, 1),
     Cube(-1, 1), Cube(-1, 0), Cube(0, -1),
+];
+
+// Because Rev<Iter> is a different type to Iter
+pub const REV_DIRECTIONS: [Cube<i32>; 6] = [
+    Cube(0, -1), Cube(-1, 0), Cube(-1, 1),
+    Cube(0, 1), Cube(1, 0), Cube(1, -1),
 ];
 
 // const DIRECTIONS: [Point<i32>; 6] = [
@@ -478,7 +493,8 @@ pub const FLAT: Orientation<f32> = Orientation {
 
 trait Float<T = Self> = Copy + From<f32> + Mul<Output = T> + Div<Output = T> + Sub<Output = T> + Add<Output = T>;
 
-pub fn pixel_to_cube<T: Copy + From<f32> + Mul<Output = T> + Div<Output = T> + Sub<Output = T> + Add<Output = T>>(&layout: &Layout<T>, pixel: [T; 2]) -> Cube<T> {
+// TODO: I removed a From<f32> here, I suspect this breaks stuff but so far everything works.
+pub fn pixel_to_cube<T: Copy + Mul<Output = T> + Div<Output = T> + Sub<Output = T> + Add<Output = T>>(&layout: &Layout<T>, pixel: [T; 2]) -> Cube<T> {
     let matrix = layout.orientation.inner();
     let size = layout.size;
     let origin = layout.origin;
@@ -486,6 +502,26 @@ pub fn pixel_to_cube<T: Copy + From<f32> + Mul<Output = T> + Div<Output = T> + S
     let q = matrix.b0 * pt[0] + matrix.b1 * pt[1];
     let r = matrix.b2 * pt[0] + matrix.b3 * pt[1];
     Cube(q, r)
+}
+
+impl Div<i32> for Cube<i32> {
+    type Output = Cube<f32>;
+
+    fn div(self, rhs: i32) -> Self::Output {
+        if rhs == 0 {
+            panic!("Cannot divide by zero!");
+        }
+
+        Cube::new(self.q() as f32 / rhs as f32, self.r() as f32 / rhs as f32)
+    }
+}
+
+impl Neg for Cube<i32> {
+    type Output = Cube<i32>;
+
+    fn neg(self) -> Self::Output {
+        Cube::new(-self.q(), -self.r())
+    }
 }
 
 #[allow(dead_code)]

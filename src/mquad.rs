@@ -6,6 +6,7 @@ use macroquad::texture::load_image;
 use crate::cubic;
 use crate::World;
 use crate::cubic::Cube;
+use crate::cubic::DIRECTIONS;
 use crate::cubic::Layout;
 use crate::cubic::OrientationKind;
 use crate::cubic::pixel_to_cube;
@@ -40,6 +41,8 @@ pub struct Assets {
     pub airport: Texture2D,
     pub fields: Texture2D,
     pub water_material: Material,
+    pub init_layout: Layout<f32>,
+    pub shape: Vec<(f32, f32)>,
 }
 
 impl World {
@@ -139,6 +142,19 @@ impl World {
 //     hexagon_rgba(context, layout, cube, color)
 
 
+fn draw_map_control_summary(game: &Game) {
+    let mut dy = 0.;
+    for (idx, player) in game.players.iter().enumerate() {
+        let color = owner_to_color(&Some(idx));
+        let no_owned = game.world.cubes_by_ownership.get(&idx).unwrap().len();
+        let percentage = no_owned as f32 / game.world.len() as f32 * 100.;
+        let text = format!("{}: {:.2}%", player.name, percentage);
+        let (x, mut y) = (1700., 50.);
+        y += dy;
+        dy += 40.;
+        draw_text(&text, x, y, 40., color);
+    }
+}
 
 
 pub fn draw(game: &Game, &layout: &Layout<f32>, assets: &Assets, time: f32) {
@@ -157,6 +173,18 @@ pub fn draw(game: &Game, &layout: &Layout<f32>, assets: &Assets, time: f32) {
 
     draw_army_info(&game.world, &layout);
     draw_all_locality_names(&game.world, &layout, &assets);
+
+    draw_text(&get_fps().to_string(), 50.0, 50.0, 40., BLACK);
+    draw_map_control_summary(game);
+
+    let mut shape = assets.shape.clone();
+    let x_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.0));
+    let y_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.1));
+    shape = shape.iter().map(|(x, y)| (x - x_min, y - y_min)).collect();
+    // World::draw_shape_outline(shape, &layout, &assets.init_layout);
+    for cs in &game.world.rivers {
+        draw_river(&cs, &layout);
+    }
 }
 
 pub fn draw_editor(editor: &Editor, layout: &Layout<f32>, assets: &Assets, time: f32) {
@@ -296,4 +324,66 @@ fn army_info_backdrop(pos: [f32; 2], layout: &Layout<f32>) {
     let sides = 10; // Number of sides (points) to use for the semicircle
 
     draw_two_circles([x, y], r, angle, sides);
+}
+
+fn draw_river(cube: &crate::river::CubeSide, layout: &Layout<f32>) {
+    let r = layout.size[0];
+    // let pos = Cube::new(cube.int.q() as f32, cube.int.r() as f32).to_pixel(layout);
+    let direction_q = ((cube.half.q() as i32 as f32).copysign(cube.int.q() as f32) as i32).abs();
+    let direction_r = ((cube.half.r() as i32 as f32).copysign(cube.int.r() as f32) as i32).abs() * (-1);
+    let direction = Cube::new(direction_q, direction_r);
+    let pos = (cube.to_float() - (direction / 2)).to_pixel(layout);
+
+    let d0 = DIRECTIONS[0];
+    let d1 = DIRECTIONS[1];
+    let d2 = DIRECTIONS[2];
+    let d3 = DIRECTIONS[3];
+    let d4 = DIRECTIONS[4];
+    let d5 = DIRECTIONS[5];
+
+    let mut x1 = 0.;
+    let mut x2 = 0.;
+    let mut y1 = 0.;
+    let mut y2 = 0.;
+
+    if direction == d5 { // =
+        x1 = pos[0] + (r / 2.);
+        x2 = pos[0] - (r / 2.);
+        y1 = pos[1] - r;
+        y2 = pos[1] - r;
+    }
+    else if direction == d2 { // =
+        x1 = pos[0] + (r / 2.);
+        x2 = pos[0] - (r / 2.);
+        y1 = pos[1] + r;
+        y2 = pos[1] + r;
+    }
+    else if direction == d1 { // //
+        x1 = pos[0] + (r / 2.);
+        x2 = pos[0] + r;
+        y1 = pos[1] + r;
+        y2 = pos[1];
+    }  
+    else if direction == d4 { // //
+        x1 = pos[0] - (r / 2.);
+        x2 = pos[0] - r;
+        y1 = pos[1] - r;
+        y2 = pos[1];
+    }
+    else if direction == d0 { // \\
+        x1 = pos[0] + (r / 2.);
+        x2 = pos[0] + r;
+        y1 = pos[1] - r;
+        y2 = pos[1];}
+    else if direction == d3 { // \\
+        x1 = pos[0] - (r / 2.);
+        x2 = pos[0] - r;
+        y1 = pos[1] + r;
+        y2 = pos[1];
+    } else {
+        panic!("invalid river segment (debug) {:?}; {:} (pretty); calc'd direction: {:}", cube, cube, direction);
+    }
+
+    // println!("({},{}), ({},{})", x1, y1, x2, y2);
+    draw_line(x1, y1, x2, y2, 20., GREEN);
 }

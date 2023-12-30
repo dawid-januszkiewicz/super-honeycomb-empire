@@ -23,6 +23,7 @@ use crate::Player;
 use crate::World;
 use crate::mquad::Assets;
 use crate::world::MAX_STACK_SIZE;
+use crate::world::ACTIONS_PER_TURN;
 
 use crate::world::TileCategory;
 use crate::world::gen::*;
@@ -117,11 +118,21 @@ impl Game {
         &self.players[index]
     }
     pub fn init_world(&mut self, assets: &mut Assets) {
+        // let shape_gen = ShapeGen::Custom(assets.shape.clone());
         let shape_gen = ShapeGen::Hexagonal;
         let localities_gen = LocalitiesGen::Random;
         let capitals_gen = CapitalsGen::Random;
-        self.world.generate(&mut self.players, shape_gen, 70, localities_gen, capitals_gen, &mut assets.locality_names.iter().map(|s| &**s).collect());
+        self.world.generate(
+            &mut self.players,
+            shape_gen, 5,
+            localities_gen,
+            capitals_gen,
+            &mut assets.locality_names.iter().map(|s| &**s).collect(),
+            &assets.init_layout,
+        );
+        self.world.rivers = crate::river::generate_river(self.world.keys().collect());
         println!("{}", self.world.len());
+        println!("river (debug): {:?}", self.world.rivers);
     }
 
     // Clicking on a tile with an army selects it. If the player
@@ -134,8 +145,8 @@ impl Game {
         let target = self.world.get(target_cube).unwrap();
         let current_player_index = self.current_player_index();
         let current_player = self.current_player();
-        // println!("current_selection: {:?}", current_player.selection);
-        // println!("click: {:?}", target_cube);
+        println!("current_selection: {:?}", current_player.selection);
+        println!("click: {:?}", target_cube);
         // let is_target_selectable = if let Some(army) = &target.army {
         //     && target.owner_index == self.player_index(&world)
         //     && army.can_move
@@ -170,7 +181,7 @@ impl Game {
     fn next_turn(&mut self) {
         let current_player_index = self.current_player_index();
         self.current_player_mut().selection = None;
-        self.current_player_mut().actions = 5;
+        self.current_player_mut().actions = ACTIONS_PER_TURN;
         self.world.train_armies(&current_player_index);
 
         // Reset army movement points
