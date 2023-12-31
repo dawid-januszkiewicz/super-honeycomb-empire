@@ -1,7 +1,8 @@
 // River tiles exist along the edges of hex tiles.
-// They are represented by Cube<f32>
+// They are represented by Cube<f32> and stored as a hashable CubeSide.
 // For example, to represent a river tile in between (1, 0, 1) and (1, -1, 0)
-// the position (1, -0.5, 0.5) is chosen
+// the position (1, -0.5, 0.5) is chosen based on {(1, 0, 1) + (1, -1, 0)} / 2
+// this is stored as CubeSide(int: (1, 0, 0), half: (false, true, true), sign: (true, false, true))
 
 use macroquad::miniquad::start;
 use rand::seq::index::sample;
@@ -57,11 +58,13 @@ impl CubeSide {
         println!("{:}", s);
         s
     }
+}
 
-    pub fn to_float(self) -> Cube<f32> {
-        let q = self.int.q() as f32 + (if self.half.q() {0.5} else {0.}) * (if self.sign.q() {1.} else {-1.});
-        let r = self.int.r() as f32 + (if self.half.r() {0.5} else {0.}) * (if self.sign.r() {1.} else {-1.});
-        Cube::new(q, r)
+impl From<&CubeSide> for Cube<f32> {
+    fn from(cube: &CubeSide) -> Self {
+        let q = cube.int.q() as f32 + (if cube.half.q() {0.5} else {0.}) * (if cube.sign.q() {1.} else {-1.});
+        let r = cube.int.r() as f32 + (if cube.half.r() {0.5} else {0.}) * (if cube.sign.r() {1.} else {-1.});
+        Self::new(q, r)
     }
 }
 
@@ -73,7 +76,7 @@ impl From<Cube<f32>> for CubeSide {
 
 impl Display for CubeSide {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        let cube_float = self.to_float();
+        let cube_float = Cube::<f32>::from(self);
         // let q = self.int.q() as f32 + (self.half.q() as i32 as f32 / 2.);
         // let r = self.int.r() as f32 + (self.half.r() as i32 as f32 / 2.);
         write!(f, "({}, {})", cube_float.q(), cube_float.r())
@@ -82,7 +85,7 @@ impl Display for CubeSide {
 
 impl Debug for CubeSide {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let cube_float = self.to_float();
+        let cube_float = Cube::<f32>::from(self);
         // let q = self.int.q() as f32 + ((self.half.q() as i32) as f32 / 2.);
         // let r = self.int.r() as f32 + ((self.half.r() as i32) as f32 / 2.);
         // let s = -q -r;
@@ -94,92 +97,46 @@ impl Debug for CubeSide {
     }
 }
 
-
-
-// let rivers: HashSet<Cube<f32>> = HashSet::new();
-
-pub fn generate_river(world: HashSet<&Cube<i32>>) -> HashSet<CubeSide> {
+// generate a continuous length of hexagon segments
+//
+// pick a random tile as origin
+// keep adding segments of the origin hex in clockwise manner until a random roll
+// advances the origin to a new hex, in the direction of the current segment.
+// repeat last step, reversing the clockwise direction
+pub fn generate_river(land_tiles: HashSet<&Cube<i32>>, max_length: usize) -> HashSet<CubeSide> {
     let mut river = HashSet::new();
     // pick a random starting position
-    let starting_pos_idx = sample(&mut rand::thread_rng(), world.len(), 1).index(0);
-    let mut origin: Cube<i32> = *world.iter().skip(starting_pos_idx).next().unwrap().clone();
-    println!("start: {:}", origin);
-
-    // pick a random direction out of the 4 non-parallel directions
-    // either add the next direction/2 or add current direction + prev_dir/2
+    let starting_pos_idx = sample(&mut rand::thread_rng(), land_tiles.len(), 1).index(0);
+    let mut origin: Cube<i32> = *land_tiles.iter().skip(starting_pos_idx).next().unwrap().clone();
     let mut reverse = true;
+    let mut d = REV_DIRECTIONS;
     let mut dirs = DIRECTIONS.iter().cycle().skip(6);
-    // let mut prev_direction = dirs.next().unwrap().clone();
     let mut next_direction = dirs.next().unwrap().clone();
     let mut current_dir = next_direction;
-    println!("______first direction: {:}______", next_direction);
     // add half of the direction
     let mut next_pos = CubeSide::from(Cube::<f32>::from(origin) + (next_direction / 2));
-    for _ in 1..307 {
+    for _ in 0..max_length {
         river.insert(next_pos);
         let advance_a_tile = rand::random::<f32>();
         if advance_a_tile > 0.3 {
+            // advance to a new tile in the direction of the current segment
             origin += current_dir;
+
+            // if !land_tiles.contains(&origin) {break}
+
+            // at this new origin, the direction represented by the current segment is mirrored
             current_dir = current_dir * -1;
-            println!("advancing to {:}", origin);
 
-            // skip to current pos
-            let d = if reverse {DIRECTIONS} else {REV_DIRECTIONS};
-            let mut idx = d.iter().position(|&c| c == (current_dir)).unwrap();
-            // let mut idx = dirs.position(|&c| c == current_dir).unwrap();
-            println!("original idx: {:}", idx);
-
-            let geo_mapping = vec![3, 4, 5, 0, 1, 2]; // or mul by -1
-            let rev_mapping = vec![5, 4, 3, 2, 1, 0];
-            // 5 <-> 2
-            // 4 <-> 1
-            // 3 <-> 0
-    
-            // idx = geo_mapping[idx];
-            idx = rev_mapping[idx];
-            println!("mapped idx: {:}", idx);
-
-            dirs = DIRECTIONS.iter().cycle().skip(idx + 1);
-            
-            if reverse {
-                // 0 <-> 5
-                // 1 <-> 4
-                // 2 <-> 3
-
-                // let mapping = vec![5, 4, 3, 2, 1, 0];
-                // let mapping = vec![3, 4, 5, 0, 1, 2];
-                // idx = mapping[idx];
-                // println!("mapped idx: {:}", idx);
-                dirs = REV_DIRECTIONS.iter().cycle().skip(idx + 1);
-            }
+            // reverse the iterator on every tile advancement
+            // find the current direction within the new iterator, and skip to it
+            d = if reverse {REV_DIRECTIONS} else {DIRECTIONS};
+            let idx = d.iter().position(|&c| c == (current_dir)).unwrap();
+            dirs = d.iter().cycle().skip(idx + 1);
             reverse = !reverse;
-
-            next_direction = dirs.next().unwrap().clone();
-            println!("curr, next: {:}, {:}", current_dir, next_direction);
-            // println!("prev, curr, next: {:}, {:}, {:}", prev_direction, current_dir, next_direction);
-            next_pos = CubeSide::from(Cube::<f32>::from(origin) + (next_direction / 2));
-            // next_pos = CubeSide::from(Cube::<f32>::from(origin) + ((prev_direction * -1) / 2));
-            // next_direction = dirs.next().unwrap().clone();
-            // prev_direction = next_direction;
-        } else {
-            next_direction = dirs.next().unwrap().clone();
-            next_pos = CubeSide::from(Cube::<f32>::from(origin) + (next_direction / 2));
         }
-        // prev_direction = current_dir;
+        next_direction = dirs.next().unwrap().clone();
+        next_pos = CubeSide::from(Cube::<f32>::from(origin) + (next_direction / 2));
         current_dir = next_direction;
     }
-
-    // println!("{:}, {:}", -0.0, (-0.0 as i32 as f32).copysign(0.0));
-    // f32::total_cmp(&0.3, &(0.1 + 0.2));
     river
 }
-
-// take 1st dir
-// take either next dir or go to next tile
-// if going to next tile, add current dir to current pos to get new pos
-// reverse the iterator
-
-
-        // let adjacent_directions: Vec<&Cube<i32>> = DIRECTIONS.iter().filter(|cube| cube != &&next_direction && cube != &&-next_direction).collect();
-        // let next_direction_idx = sample(&mut rand::thread_rng(), 4, 1).index(0);
-        // next_direction = **adjacent_directions.index(next_direction_idx);

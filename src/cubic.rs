@@ -233,21 +233,21 @@ impl Cube<f32> {
     //     let y = (matrix.f2 * self.q() + matrix.f3 * self.r()) * size[1];
     //     [x + origin[0], y + origin[1]]
     // }
-    // fn corner_offset(&layout: &Layout, corner: u8) -> [f64; 2] {
-    //     let matrix = layout.orientation.value();
-    //     let size = layout.size;
-    //     let angle = 2.0 * PI * (matrix.start_angle - corner as f64) / 6.0;
-    //     [size[0] * angle.cos(), size[1] * angle.sin()]
-    // }
-    // fn corners(&self, &layout: &Layout) -> [[f64; 2]; 6] {
-    //     let mut corners = [[0.0, 0.0]; 6];
-    //     let center = self.to_pixel(&layout);
-    //     for i in 0..6 {
-    //         let offset = Cube::<f64>::corner_offset(&layout, i);
-    //         corners[i as usize] = [center[0] + offset[0], center[1] + offset[1]];
-    //     }
-    //     corners
-    // }
+    fn corner_offset(&layout: &Layout<f32>, corner: u8) -> [f32; 2] {
+        let matrix = layout.orientation.inner();
+        let size = layout.size;
+        let angle = 2.0 * PI as f32 * (matrix.start_angle - corner as f32) / 6.0;
+        [size[0] * angle.cos(), size[1] * angle.sin()]
+    }
+    pub fn corners(&self, &layout: &Layout<f32>) -> [[f32; 2]; 6] {
+        let mut corners = [[0.0, 0.0]; 6];
+        let center = self.to_pixel(&layout);
+        for i in 0..6 {
+            let offset = Cube::<f32>::corner_offset(&layout, i);
+            corners[i as usize] = [center[0] + offset[0], center[1] + offset[1]];
+        }
+        corners
+    }
 
 }
 

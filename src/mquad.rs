@@ -326,64 +326,28 @@ fn army_info_backdrop(pos: [f32; 2], layout: &Layout<f32>) {
     draw_two_circles([x, y], r, angle, sides);
 }
 
-fn draw_river(cube: &crate::river::CubeSide, layout: &Layout<f32>) {
-    let r = layout.size[0];
-    // let pos = Cube::new(cube.int.q() as f32, cube.int.r() as f32).to_pixel(layout);
+fn draw_tile_side(cube: &crate::river::CubeSide, layout: &Layout<f32>, thickness: f32, color: Color) {
     let direction_q = ((cube.half.q() as i32 as f32).copysign(cube.int.q() as f32) as i32).abs();
     let direction_r = ((cube.half.r() as i32 as f32).copysign(cube.int.r() as f32) as i32).abs() * (-1);
     let direction = Cube::new(direction_q, direction_r);
-    let pos = (cube.to_float() - (direction / 2)).to_pixel(layout);
 
-    let d0 = DIRECTIONS[0];
-    let d1 = DIRECTIONS[1];
-    let d2 = DIRECTIONS[2];
-    let d3 = DIRECTIONS[3];
-    let d4 = DIRECTIONS[4];
-    let d5 = DIRECTIONS[5];
+    let origin = Cube::<f32>::from(cube) - (direction / 2);
+    let mut corners = origin.corners(layout);
+    corners.reverse();
 
-    let mut x1 = 0.;
-    let mut x2 = 0.;
-    let mut y1 = 0.;
-    let mut y2 = 0.;
+    let mut idx = (DIRECTIONS.iter().position(|dir| dir == &direction).unwrap()) % 6;
+    let mut shift = 3;
+    if matches!(layout.orientation, OrientationKind::Flat(_)) {shift = 4}
+    idx = (idx + shift) % 6;
+    let idx_2 = (idx + 1) % 6;
+    let [x1, y1] = corners[idx];
+    let [x2, y2] = corners[idx_2];
 
-    if direction == d5 { // =
-        x1 = pos[0] + (r / 2.);
-        x2 = pos[0] - (r / 2.);
-        y1 = pos[1] - r;
-        y2 = pos[1] - r;
-    }
-    else if direction == d2 { // =
-        x1 = pos[0] + (r / 2.);
-        x2 = pos[0] - (r / 2.);
-        y1 = pos[1] + r;
-        y2 = pos[1] + r;
-    }
-    else if direction == d1 { // //
-        x1 = pos[0] + (r / 2.);
-        x2 = pos[0] + r;
-        y1 = pos[1] + r;
-        y2 = pos[1];
-    }  
-    else if direction == d4 { // //
-        x1 = pos[0] - (r / 2.);
-        x2 = pos[0] - r;
-        y1 = pos[1] - r;
-        y2 = pos[1];
-    }
-    else if direction == d0 { // \\
-        x1 = pos[0] + (r / 2.);
-        x2 = pos[0] + r;
-        y1 = pos[1] - r;
-        y2 = pos[1];}
-    else if direction == d3 { // \\
-        x1 = pos[0] - (r / 2.);
-        x2 = pos[0] - r;
-        y1 = pos[1] + r;
-        y2 = pos[1];
-    } else {
-        panic!("invalid river segment (debug) {:?}; {:} (pretty); calc'd direction: {:}", cube, cube, direction);
-    }
+    draw_line(x1, y1, x2, y2, thickness, color);
+}
 
-    // println!("({},{}), ({},{})", x1, y1, x2, y2);
-    draw_line(x1, y1, x2, y2, 20., GREEN);
+fn draw_river(cube: &crate::river::CubeSide, layout: &Layout<f32>) {
+    let thickness = layout.size[0] / 4.;
+    let color = BLUE;
+    draw_tile_side(cube, layout, thickness, color);
 }

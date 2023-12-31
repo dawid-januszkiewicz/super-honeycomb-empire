@@ -130,7 +130,10 @@ impl Game {
             &mut assets.locality_names.iter().map(|s| &**s).collect(),
             &assets.init_layout,
         );
-        self.world.rivers = crate::river::generate_river(self.world.keys().collect());
+        let land_tiles: HashSet<&Cube<i32>> = self.world.iter().filter_map(|(c, t)| {
+            if matches!(t.category, TileCategory::Farmland) {Some(c)} else {None}
+        }).collect();
+        self.world.rivers = crate::river::generate_river(land_tiles, 300);
         println!("{}", self.world.len());
         println!("river (debug): {:?}", self.world.rivers);
     }
