@@ -3,7 +3,6 @@ use macroquad::window::screen_height;
 use macroquad::window::screen_width;
 use num::Signed;
 
-use std::collections::HashSet;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Neg;
@@ -20,10 +19,26 @@ use std::f64::consts::PI;
 
 use serde::{Serialize, Deserialize};
 
-// use std::collections::HashSet;
-
 #[derive(Default, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Cube<T>(T, T);
+
+#[derive(Default, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct Pixel<T>(pub T, pub T);
+
+impl<T: Add<T, Output = T>> Add<Pixel<T>> for Pixel<T> {
+    type Output = Self;
+    fn add(self, rhs: Pixel<T>) -> Self::Output {
+        Self(self.0 + rhs.0, self.1 + rhs.1)
+    }
+}
+
+impl Div<f32> for Pixel<f32> {
+    type Output = Pixel<f32>;
+    fn div(self, rhs: f32) -> Self::Output {
+        if rhs == 0. { panic!("Cannot divide by zero!"); }
+        Pixel(self.0 / rhs, self.1 / rhs)
+    }
+}
 
 impl<T> Cube<T> where T: Copy {
     pub fn new(q: T, r: T) -> Self {
@@ -178,8 +193,8 @@ impl<T, U: Copy> Mul<U> for Cube<T> where T: Mul<U> {
 //     }
 // }
 
-impl<T> Cube<T> where T: Copy + Signed + Mul + From<f32> {
-    pub fn to_pixel(&self, &layout: &Layout<T>) -> [T; 2] {
+impl<T> Cube<T> where T: Copy + Signed + Mul + From<f32> + num::Float {
+    pub fn to_pixel(&self, &layout: &Layout<T>) -> Pixel<T> {
         let matrix = layout.orientation.inner();
         let size = layout.size;
         let origin = layout.origin;
@@ -189,16 +204,26 @@ impl<T> Cube<T> where T: Copy + Signed + Mul + From<f32> {
 
         let x = ((matrix.f0 * self.q() + matrix.f1 * self.r()) * size[0]);// / hw;
         let y = ((matrix.f2 * self.q() + matrix.f3 * self.r()) * size[1]);// / hh;
-        [x + origin[0], y + origin[1]]
+        Pixel(x + origin[0], y + origin[1])
     }
-    pub fn to_pixel_(&self, &layout: &Layout<T>) -> [T; 2] {
+    fn corner_offset(&layout: &Layout<T>, corner: u8) -> Pixel<T> {
         let matrix = layout.orientation.inner();
         let size = layout.size;
-        let origin = layout.origin;
-
-        let x = (matrix.f0 * self.q() + matrix.f1 * self.r()) * size[0];
-        let y = (matrix.f2 * self.q() + matrix.f3 * self.r()) * size[1];
-        [x + origin[0] as T, y + origin[1]]
+        let angle: T = <T as num::NumCast>::from(2.0 * PI).unwrap() * (matrix.start_angle - (corner as f32).into()) / (6.0).into();
+        Pixel(size[0] * angle.cos(), size[1] * angle.sin())
+    }
+    pub fn corners(&self, &layout: &Layout<T>) -> [Pixel<T>; 6] {
+        let mut corners: [Pixel<T>; 6] = [Pixel(<T as num::NumCast>::from(0.0).unwrap(), <T as num::NumCast>::from(0.0).unwrap()); 6];
+        let center = self.to_pixel(&layout);
+        for i in 0..6 {
+            let offset = Cube::corner_offset(&layout, i);
+            corners[i as usize] = Pixel(center.0 + offset.0, center.1 + offset.1);
+        }
+        corners.reverse();
+        let mut shift = 3;
+        if matches!(layout.orientation, OrientationKind::Flat(_)) {shift = 4}
+        corners.rotate_left(shift);
+        corners
     }
 }
 
@@ -225,30 +250,6 @@ impl Cube<f32> {
             self.r() * (1.0 - t) + other.r() * t,
         )
     }
-    // pub fn to_pixel(&self, &layout: &Layout) -> [f64; 2] {
-    //     let matrix = layout.orientation.value();
-    //     let size = layout.size;
-    //     let origin = layout.origin;
-    //     let x = (matrix.f0 * self.q() + matrix.f1 * self.r()) * size[0];
-    //     let y = (matrix.f2 * self.q() + matrix.f3 * self.r()) * size[1];
-    //     [x + origin[0], y + origin[1]]
-    // }
-    fn corner_offset(&layout: &Layout<f32>, corner: u8) -> [f32; 2] {
-        let matrix = layout.orientation.inner();
-        let size = layout.size;
-        let angle = 2.0 * PI as f32 * (matrix.start_angle - corner as f32) / 6.0;
-        [size[0] * angle.cos(), size[1] * angle.sin()]
-    }
-    pub fn corners(&self, &layout: &Layout<f32>) -> [[f32; 2]; 6] {
-        let mut corners = [[0.0, 0.0]; 6];
-        let center = self.to_pixel(&layout);
-        for i in 0..6 {
-            let offset = Cube::<f32>::corner_offset(&layout, i);
-            corners[i as usize] = [center[0] + offset[0], center[1] + offset[1]];
-        }
-        corners
-    }
-
 }
 
 impl Cube<i32> {
@@ -303,11 +304,6 @@ pub const REV_DIRECTIONS: [Cube<i32>; 6] = [
     Cube(0, -1), Cube(-1, 0), Cube(-1, 1),
     Cube(0, 1), Cube(1, 0), Cube(1, -1),
 ];
-
-// const DIRECTIONS: [Point<i32>; 6] = [
-//     Point{q: 1, r: -1}, Point{q: 1, r: 0}, Point{q: 0, r: 1},
-//     Point{q: -1, r: 1}, Point{q: -1, r: 0}, Point{q: 0, r: -1},
-// ];
 
 // impl<T> Point<T> where T: Copy + Signed + Div<i32, Output=T> {
     // fn get_neighbour(&self, direction: usize) -> Point<T> {

@@ -103,7 +103,7 @@ impl Debug for CubeSide {
 // keep adding segments of the origin hex in clockwise manner until a random roll
 // advances the origin to a new hex, in the direction of the current segment.
 // repeat last step, reversing the clockwise direction
-pub fn generate_river(land_tiles: HashSet<&Cube<i32>>, max_length: usize) -> HashSet<CubeSide> {
+pub fn generate_river(land_tiles: HashSet<&Cube<i32>>, max_length: usize, threshold: f32) -> HashSet<CubeSide> {
     let mut river = HashSet::new();
     // pick a random starting position
     let starting_pos_idx = sample(&mut rand::thread_rng(), land_tiles.len(), 1).index(0);
@@ -118,7 +118,7 @@ pub fn generate_river(land_tiles: HashSet<&Cube<i32>>, max_length: usize) -> Has
     for _ in 0..max_length {
         river.insert(next_pos);
         let advance_a_tile = rand::random::<f32>();
-        if advance_a_tile > 0.3 {
+        if advance_a_tile > threshold {
             // advance to a new tile in the direction of the current segment
             origin += current_dir;
 

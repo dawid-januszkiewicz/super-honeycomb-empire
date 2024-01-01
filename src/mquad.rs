@@ -9,6 +9,7 @@ use crate::cubic::Cube;
 use crate::cubic::DIRECTIONS;
 use crate::cubic::Layout;
 use crate::cubic::OrientationKind;
+use crate::cubic::Pixel;
 use crate::cubic::pixel_to_cube;
 use crate::game::Game;
 use crate::inputs::{draw_tile_selector, draw_all_locality_names};
@@ -43,6 +44,7 @@ pub struct Assets {
     pub water_material: Material,
     pub init_layout: Layout<f32>,
     pub shape: Vec<(f32, f32)>,
+    pub river: Vec<(f32, f32)>,
 }
 
 impl World {
@@ -56,8 +58,8 @@ impl World {
             //     TileCategory::Farmland => LIGHTGRAY,
             //     TileCategory::Water => SKYBLUE,
             // };
-            let x = pixel[0] as f32;
-            let y: f32 = pixel[1] as f32;
+            let x = pixel.0;
+            let y = pixel.1;
             let vertical = match layout.orientation {
                 OrientationKind::Pointy(_) => true,
                 OrientationKind::Flat(_) => false,
@@ -92,8 +94,8 @@ impl World {
         let y_army_offset = layout.size[1] as f32 * 0.7;
         for (cube, tile) in self.world.iter() {
             let pixel = Cube::<f32>::from(*cube).to_pixel(&layout);
-            let x = pixel[0] as f32;
-            let y = pixel[1] as f32;
+            let x = pixel.0;
+            let y = pixel.1;
             if tile.owner_index.is_some() {
                 let color = owner_to_color(&tile.owner_index);
                 let vertical = match layout.orientation {
@@ -177,10 +179,21 @@ pub fn draw(game: &Game, &layout: &Layout<f32>, assets: &Assets, time: f32) {
     draw_text(&get_fps().to_string(), 50.0, 50.0, 40., BLACK);
     draw_map_control_summary(game);
 
-    let mut shape = assets.shape.clone();
-    let x_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.0));
-    let y_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.1));
-    shape = shape.iter().map(|(x, y)| (x - x_min, y - y_min)).collect();
+    // let mut shape = assets.shape.clone();
+    // let mut shape = assets.river.clone();
+
+    // let x_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.0));
+    // let y_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.1));
+    // shape = shape.iter().map(|(x, y)| (x - x_min, y - y_min)).collect();
+
+    // for j in 1..shape.len() {
+    //     let (mut x, mut y) = shape[j];
+    //     x *= layout.size[0] / assets.init_layout.size[0];
+    //     y *= layout.size[1] / assets.init_layout.size[1];
+    //     x += layout.origin[0];
+    //     y += layout.origin[1];
+    //     draw_circle(x, y, 1., RED);
+    // }
     // World::draw_shape_outline(shape, &layout, &assets.init_layout);
     for cs in &game.world.rivers {
         draw_river(&cs, &layout);
@@ -236,9 +249,9 @@ fn draw_army_can_move_indicator(game: &Game, &layout: &Layout<f32>) {
                 OrientationKind::Pointy(_) => true,
                 OrientationKind::Flat(_) => false,
             };
-            let [x, y] = Cube::<f32>::from(*cube).to_pixel(&layout);
+            let p = Cube::<f32>::from(*cube).to_pixel(&layout);
             let color = Color::from_rgba(255, 255, 0, 136);//0x8800ffff
-            draw_hexagon(x, y, size, size/10., vertical, BLACK, color);
+            draw_hexagon(p.0, p.1, size, size/10., vertical, BLACK, color);
         }
     )
 }
@@ -254,8 +267,8 @@ fn draw_army_legal_moves(game: &Game, &layout: &Layout<f32>) {
         };
 
         game.world.get_all_legal_moves(&selection, &game.current_player_index()).iter().for_each(|cube| {
-            let [x, y] = Cube::<f32>::from(*cube).to_pixel(&layout);
-            draw_hexagon(x, y, size, size/10., vertical, BLACK, color);
+            let p = Cube::<f32>::from(*cube).to_pixel(&layout);
+            draw_hexagon(p.0, p.1, size, size/10., vertical, BLACK, color);
         });
     }
 }
@@ -267,30 +280,30 @@ fn draw_army_info(world: &World, &layout: &Layout<f32>) {
     nearest_cubes.push(cube);
     nearest_cubes.iter().for_each(|cube|
         if world.get(cube).is_some_and(|tile| tile.army.is_some()) {
-            let pos = Cube::<f32>::from(*cube).to_pixel(&layout);
-            army_info(pos, &layout, &world.get(cube).unwrap());
+            let p = Cube::<f32>::from(*cube).to_pixel(&layout);
+            army_info(p, &layout, &world.get(cube).unwrap());
         }
     )
 
 }
 
-fn army_info(pos: [f32; 2], layout: &Layout<f32>, tile: &Tile) {
-    army_info_backdrop(pos, &layout);
-    army_info_text(pos, &layout, &tile);
+fn army_info(p: Pixel<f32>, layout: &Layout<f32>, tile: &Tile) {
+    army_info_backdrop(p, &layout);
+    army_info_text(p, &layout, &tile);
 }
 
-fn army_info_text(pos: [f32; 2], layout: &Layout<f32>, tile: &Tile) {
+fn army_info_text(p: Pixel<f32>, layout: &Layout<f32>, tile: &Tile) {
     let size = layout.size[0] * 0.8;
     let offset = layout.size[0] * 0.2;
-    let x = pos[0] - offset * 2.;
-    let y = pos[1] - offset / 2.;
+    let x = p.0 - offset * 2.;
+    let y = p.1 - offset / 2.;
     let army = tile.army.as_ref().unwrap();
     let manpower_text = army.manpower.to_string();
     draw_text(manpower_text.as_str(), x, y, size, WHITE);
 
     let offset = -6.;
-    let x = pos[0] + offset / 2.;
-    let y = pos[1] - offset * 2.;
+    let x = p.0 + offset / 2.;
+    let y = p.1 - offset * 2.;
     let morale_text = army.morale.to_string();
     draw_text(morale_text.as_str(), x, y, size, RED);
 }
@@ -316,10 +329,10 @@ fn draw_two_circles(center: [f32; 2], radius: f32, angle: f32, sides: usize) {
     draw_semicircle(center, radius, std::f32::consts::PI + offset_angle, 2.0 * std::f32::consts::PI + offset_angle, sides, BLACK);
 }
 
-fn army_info_backdrop(pos: [f32; 2], layout: &Layout<f32>) {
+fn army_info_backdrop(p: Pixel<f32>, layout: &Layout<f32>) {
     let r = layout.size[0] * (3f32.sqrt())/2.0 * 0.8; // Radius of the semicircle
     let angle = std::f32::consts::PI / 4.0; // Angle between the two circles (45 degrees)
-    let [x, y] = pos;
+    let [x, y] = [p.0, p.1];
 
     let sides = 10; // Number of sides (points) to use for the semicircle
 
@@ -333,17 +346,13 @@ fn draw_tile_side(cube: &crate::river::CubeSide, layout: &Layout<f32>, thickness
 
     let origin = Cube::<f32>::from(cube) - (direction / 2);
     let mut corners = origin.corners(layout);
-    corners.reverse();
 
     let mut idx = (DIRECTIONS.iter().position(|dir| dir == &direction).unwrap()) % 6;
-    let mut shift = 3;
-    if matches!(layout.orientation, OrientationKind::Flat(_)) {shift = 4}
-    idx = (idx + shift) % 6;
     let idx_2 = (idx + 1) % 6;
-    let [x1, y1] = corners[idx];
-    let [x2, y2] = corners[idx_2];
+    let p1 = corners[idx];
+    let p2 = corners[idx_2];
 
-    draw_line(x1, y1, x2, y2, thickness, color);
+    draw_line(p1.0, p1.1, p2.0, p2.1, thickness, color);
 }
 
 fn draw_river(cube: &crate::river::CubeSide, layout: &Layout<f32>) {

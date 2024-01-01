@@ -134,7 +134,8 @@ pub fn draw_tile_selector(&layout: &Layout<f32>) {
     let pos = mouse_position().into();
     // let pos = mouse_position_local().into();
     let cube = cubic::pixel_to_cube(&layout, pos).round();
-    let [x, y] = cube.to_pixel(&layout);
+    let p = cube.to_pixel(&layout);
+    let [x, y] = [p.0, p.1];
     // println!("{:?}", pos);
     let color = Color::from_rgba(224, 208, 64, 136); // 0x88d0e040
     draw_hexagon(x, y, size, size/10., vertical, BLACK, color);
@@ -154,7 +155,8 @@ fn draw_locality_name(layout: &Layout<f32>, cube: &Cube<i32>, tile: &Tile, font:
             _ => WHITE,
         };
 
-        let [mut x, mut y] = Cube::<f32>::from(*cube).to_pixel(&layout);
+        let p = Cube::<f32>::from(*cube).to_pixel(&layout);
+        let [mut x, mut y] = [p.0, p.1];
         let center: Vec2 = get_text_center(locality.name.as_str(), Some(params.font), params.font_size, params.font_scale, params.rotation);
         x -= center.x;
         y -= layout.size[1] + center.y;

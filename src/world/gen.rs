@@ -17,15 +17,19 @@ use crate::TileCategory;
 use crate::Cube;
 use crate::Locality;
 use crate::LocalityCategory;
+use crate::cubic::DIRECTIONS;
 use crate::cubic::Layout;
 use crate::cubic::OrientationKind;
+use crate::cubic::Pixel;
 use crate::cubic::pixel_to_cube;
+use crate::river::CubeSide;
 use super::extend_borders;
 // use crate::cubic::Layout;
 // use crate::cubic::POINTY;
 // use crate::cubic::FLAT;
 
 extern crate rand;
+use macroquad::shapes::draw_hexagon;
 use macroquad::shapes::draw_line;
 use macroquad::shapes::draw_poly_lines;
 use rand::Rng;
@@ -49,7 +53,11 @@ pub enum LocalitiesGen {
 
 pub enum ShapeGen {
     Classic,
-    Hexagonal,
+    Hexagonal(i32),
+    Custom(Vec<(f32, f32)>),
+}
+pub enum RiverGen {
+    Random(usize, f32),
     Custom(Vec<(f32, f32)>),
 }
 
@@ -89,13 +97,69 @@ impl World {
         }
     }
 
-    fn choose_shape_gen(&mut self, shape: ShapeGen, radius: i32, init_layout: &crate::cubic::Layout<f32>) {
+    fn choose_shape_gen(&mut self, shape: ShapeGen, init_layout: &crate::cubic::Layout<f32>) {
         match shape {
             ShapeGen::Classic => self.gen_classic_shape(),
-            ShapeGen::Hexagonal => self.gen_hexagonal_shape(radius),
+            ShapeGen::Hexagonal(radius) => self.gen_hexagonal_shape(radius),
             ShapeGen::Custom(shape) => {
                 let my_shape_map = World::from_shape(shape, init_layout);
                 self.gen_custom_shape(my_shape_map);
+            }
+        }
+    }
+
+    fn choose_river_gen(&mut self, river: RiverGen, init_layout: &Layout<f32>) {
+        let land_tiles: HashSet<&Cube<i32>> = self.world.iter().filter_map(|(c, t)| {
+            if matches!(t.category, TileCategory::Farmland) {Some(c)} else {None}
+        }).collect();
+        match river {
+            RiverGen::Random(ln, th) => {
+                self.rivers = crate::river::generate_river(land_tiles, ln, th);
+            }
+            RiverGen::Custom(river) => {
+                // TODO new algo:
+                // iter line by line
+                // round to find all cubes
+                // draw some line along the cube path
+                let mut counts: HashMap<CubeSide, usize> = HashMap::new();
+                self.rivers = HashSet::new();
+
+                let x_min = river.iter().fold(f32::NAN, |a, &b| a.min(b.0));
+                let y_min = river.iter().fold(f32::NAN, |a, &b| a.min(b.1));
+                let river_2: Vec<_> = river.iter().map(|(x, y)| (x - x_min, y - y_min)).collect();
+
+                let (mut x_factor, mut y_factor) = (1.5, f32::sqrt(3.));
+                if matches!(init_layout.orientation, OrientationKind::Pointy(_)) {
+                    (x_factor, y_factor) = (y_factor, x_factor);
+                }
+                for (mut x, mut y) in river_2 {
+                    // x = x / (init_layout.size[0] * x_factor);
+                    // y = y / (init_layout.size[1] * y_factor);
+                    let cube = pixel_to_cube(&init_layout, [x, y]);
+                    let origin: Cube<i32> = cube.round();
+
+                    let corners = Cube::<f32>::from(origin).corners(&init_layout);
+                    let mut corners_2 = corners.clone();
+                    corners_2.rotate_left(1);
+                    let segments: Vec<_> = corners.iter().zip(corners_2.iter()).collect();
+                    let midpoints: Vec<_> = segments.iter().map(|(p1 , p2)| (**p1 + **p2) / 2.).collect();
+                    let diffs: Vec<_> = midpoints.iter().map(|p| (x - p.0).powf(2.) + (y - p.1).powf(2.)).collect();
+
+                    let idx = diffs.iter()
+                        .enumerate()
+                        .max_by(|(_, a), (_, b)| a.total_cmp(b))
+                        .map(|(index, _)| index)
+                        .unwrap();
+
+                    let dir = DIRECTIONS[idx];
+                    let segment = CubeSide::from(Cube::<f32>::from(origin) + dir/2);
+                    let count = counts.entry(segment).or_insert(0);
+                    *count += 1;
+                    // self.rivers.insert(segment);
+
+                }
+                self.rivers = counts.iter().filter_map(|(k, v)| if *v > 0 {Some(*k)} else {None}).collect();
+                println!("rivers: {:?}", self.rivers);
             }
         }
     }
@@ -275,14 +339,15 @@ impl World {
         &mut self,
         players: &mut Vec<Player>,
         shape_gen: ShapeGen,
-        radius: i32,
+        river_gen: RiverGen,
         localities_gen: LocalitiesGen,
         capitals_gen: CapitalsGen,
         locality_names: &mut Vec<&str>,
         init_layout: &crate::cubic::Layout<f32>,
     ) {
-        self.choose_shape_gen(shape_gen, radius, init_layout);
-        self.gen_water();
+        self.choose_shape_gen(shape_gen, init_layout);
+        // self.gen_water();
+        self.choose_river_gen(river_gen, init_layout);
         self.choose_localities_gen(localities_gen, locality_names);
         self.choose_capitals_gen(capitals_gen, players, locality_names);
     }
@@ -390,8 +455,8 @@ impl World {
                         // map.insert(Cube::new(q,r));
                         let cube = Cube::new(q as f32,r as f32);
                         let mut pos = cube.to_pixel(layout);
-                        pos[0] += x_min;
-                        pos[1] += y_min;
+                        pos.0 += x_min;
+                        pos.1 += y_min;
                         if is_inside_polygon(&shape, pos) {
                             map.insert(Cube::new(q, r));
                         } else {
@@ -478,8 +543,8 @@ impl World {
 //     inside
 // }
 
-fn is_inside_polygon(polygon: &Vec<(f32, f32)>, point: [f32;2]) -> bool {
-    let (px, py) = (point[0], point[1]);
+fn is_inside_polygon(polygon: &Vec<(f32, f32)>, point: Pixel<f32>) -> bool {
+    let (px, py) = (point.0, point.1);
     let mut inside = false;
     let mut j = polygon.len() - 1;
 

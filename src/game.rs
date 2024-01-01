@@ -118,24 +118,23 @@ impl Game {
         &self.players[index]
     }
     pub fn init_world(&mut self, assets: &mut Assets) {
-        // let shape_gen = ShapeGen::Custom(assets.shape.clone());
-        let shape_gen = ShapeGen::Hexagonal;
+        let shape_gen = ShapeGen::Custom(assets.shape.clone());
+        // let shape_gen = ShapeGen::Hexagonal(8);
+        let river_gen = RiverGen::Custom(assets.river.clone());
+        // let river_gen = RiverGen::Random(300, 0.3);
         let localities_gen = LocalitiesGen::Random;
         let capitals_gen = CapitalsGen::Random;
         self.world.generate(
             &mut self.players,
-            shape_gen, 5,
+            shape_gen,
+            river_gen,
             localities_gen,
             capitals_gen,
             &mut assets.locality_names.iter().map(|s| &**s).collect(),
             &assets.init_layout,
         );
-        let land_tiles: HashSet<&Cube<i32>> = self.world.iter().filter_map(|(c, t)| {
-            if matches!(t.category, TileCategory::Farmland) {Some(c)} else {None}
-        }).collect();
-        self.world.rivers = crate::river::generate_river(land_tiles, 300);
-        println!("{}", self.world.len());
-        println!("river (debug): {:?}", self.world.rivers);
+        // println!("{}", self.world.len());
+        // println!("river (debug): {:?}", self.world.rivers);
     }
 
     // Clicking on a tile with an army selects it. If the player

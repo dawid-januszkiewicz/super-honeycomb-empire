@@ -88,6 +88,30 @@ async fn load_assets() -> Assets {
         }
         //  if idx > 50000 {break}
     }
+
+    let mut river: Vec<(f32, f32)> = Vec::new();
+    let file = File::open("assets/shapes/ua-rivers.csv").unwrap();
+    let mut rdr = csv::Reader::from_reader(file);
+    // Iterate over each record in the CSV and parse the values
+    for (idx, result) in rdr.records().enumerate() {
+        let record = result.unwrap();
+        let first_value: f32 = record.get(23).unwrap().parse().unwrap();
+        let second_value: f32 = record.get(24).unwrap().parse().unwrap();
+        // let vertex_part: i32 = record.get(12).unwrap().parse().unwrap();
+        // let vertex_part_ring: i32 = record.get(13).unwrap().parse().unwrap();
+
+        let r = 6371000.0 / 500.; //1:250 is nearly max
+        let y = r * ((std::f32::consts::PI/4.) + (second_value.to_radians()/2.)).tan().ln();
+        let x = r * first_value.to_radians();
+        river.push((x, y * -1.));
+
+        // if vertex_part == 158 && vertex_part_ring == 0 {
+        //     // shape.push((first_value * r, second_value*(-1.) * r));
+        //     shape.push((x, y * -1.));
+        // }
+        //  if idx > 50000 {break}
+    }
+
     //println!("{:?}", shape);
     //let shape = vec!((0.,0.), (500., -950.), (1000., 0.), (1000.,-1000.), (500., -950.), (0.,-1000.));
     // let shape = vec!((0.,0.), (1000., 0.), (1000.,-1000.), (0.,-1000.));
@@ -95,7 +119,7 @@ async fn load_assets() -> Assets {
     // let min_x = shape.iter().fold(0., |init: f32, (x, y)| init.min(*x));
     // let min_y = shape.iter().fold(0., |init: f32, (x, y)| init.min(*y));
 
-    Assets{locality_names, font, army, port, airport, fields, water_material, init_layout, shape}
+    Assets{locality_names, font, army, port, airport, fields, water_material, init_layout, shape, river}
 }
 
 fn window_conf() -> Conf {
