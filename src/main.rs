@@ -9,6 +9,7 @@ mod mquad;
 mod inputs;
 mod map_editor;
 mod river;
+mod shapefiles;
 
 use ai::*;
 use cubic::*;
@@ -29,6 +30,49 @@ pub trait Component {
     fn draw(&self, layout: &Layout<f32>, assets: &Assets, time: f32);
     fn update(&mut self);
     // fn swap(self) -> dyn Component;
+}
+
+fn load_rivers(shape: &Vec<(f32, f32)>) -> Vec<(usize, f32, f32)> {
+    let x_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.0));
+    let y_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.1));
+    // shape = shape.iter().map(|(x, y)| (x - x_min, y - y_min)).collect();
+
+    let mut river: Vec<(usize, f32, f32)> = Vec::new();
+    let file = File::open("assets/shapes/ua-rivers.csv").unwrap();
+    let mut rdr = csv::Reader::from_reader(file);
+    // Iterate over each record in the CSV and parse the values
+    for (idx, result) in rdr.records().enumerate() {
+        let record = result.unwrap();
+        let first_value: f32 = record.get(23).unwrap().parse().unwrap();
+        let second_value: f32 = record.get(24).unwrap().parse().unwrap();
+        let id: i32 = record.get(0).unwrap().parse().unwrap();
+        let id: usize = id.abs() as usize;
+        // match record.get(12).unwrap().parse() {
+        //     Ok(_) => {},
+        //     Err(e) => print!("{:}", e),
+        // }
+        // let vertex_part: i32 = record.get(12).unwrap().parse().unwrap();
+        // let vertex_part_ring: i32 = record.get(13).unwrap().parse().unwrap();
+
+
+
+        let r = 6371000.0 / 750.; //1:250 is nearly max
+        let y = r * ((std::f32::consts::PI/4.) + (second_value.to_radians()/2.)).tan().ln();
+        let x = r * first_value.to_radians();
+        let val = (id, x - x_min, (y * -1.) - y_min);
+        // if id == 4029011 {river.push((id, x, y * -1.));}
+        if id == 25582 {river.push(val);}
+        // river.push(val);
+
+
+
+        // if vertex_part == 158 && vertex_part_ring == 0 {
+        //     // shape.push((first_value * r, second_value*(-1.) * r));
+        //     shape.push((x, y * -1.));
+        // }
+        //  if idx > 50000 {break}
+    }
+    river
 }
 
 async fn load_assets() -> Assets {
@@ -64,7 +108,8 @@ async fn load_assets() -> Assets {
     //let v: serde_json::Value = serde_json::from_str(data).unwrap();
     // let shape: Vec<(f32, f32)> = serde_json::from_str(data).unwrap();
     // Open the CSV file
-    let file = File::open("assets/shapes/ua-100k.csv").unwrap();
+    shapefiles::extract_vertices("assets/ua_shp/ukr_admbnda_adm0_sspe_20230201.shp", "assets/shapes/ua-100k_v2.csv");
+    let file = File::open("assets/shapes/ua-100k_v2.csv").unwrap();
     let mut rdr = csv::Reader::from_reader(file);
 
     // Create a Vec<(f32, f32)> to store the data
@@ -75,42 +120,24 @@ async fn load_assets() -> Assets {
         let record = result.unwrap();
         let first_value: f32 = record.get(0).unwrap().parse().unwrap();
         let second_value: f32 = record.get(1).unwrap().parse().unwrap();
-        let vertex_part: i32 = record.get(12).unwrap().parse().unwrap();
-        let vertex_part_ring: i32 = record.get(13).unwrap().parse().unwrap();
+        let vertex_part: i32 = record.get(2).unwrap().parse().unwrap();
+        // when using qgis-derived file
+        // let vertex_part: i32 = record.get(12).unwrap().parse().unwrap();
+        // let vertex_part_ring: i32 = record.get(13).unwrap().parse().unwrap();
 
-        let r = 6371000.0 / 500.; //1:250 is nearly max
+        let r = 6371000.0 / 750.; //1:250 is nearly max
         let y = r * ((std::f32::consts::PI/4.) + (second_value.to_radians()/2.)).tan().ln();
         let x = r * first_value.to_radians();
         
-        if vertex_part == 158 && vertex_part_ring == 0 {
+        if vertex_part == 158 {//&& vertex_part_ring == 0 { // include rhs when using qgis-derived file
             // shape.push((first_value * r, second_value*(-1.) * r));
             shape.push((x, y * -1.));
         }
         //  if idx > 50000 {break}
     }
 
-    let mut river: Vec<(f32, f32)> = Vec::new();
-    let file = File::open("assets/shapes/ua-rivers.csv").unwrap();
-    let mut rdr = csv::Reader::from_reader(file);
-    // Iterate over each record in the CSV and parse the values
-    for (idx, result) in rdr.records().enumerate() {
-        let record = result.unwrap();
-        let first_value: f32 = record.get(23).unwrap().parse().unwrap();
-        let second_value: f32 = record.get(24).unwrap().parse().unwrap();
-        // let vertex_part: i32 = record.get(12).unwrap().parse().unwrap();
-        // let vertex_part_ring: i32 = record.get(13).unwrap().parse().unwrap();
-
-        let r = 6371000.0 / 500.; //1:250 is nearly max
-        let y = r * ((std::f32::consts::PI/4.) + (second_value.to_radians()/2.)).tan().ln();
-        let x = r * first_value.to_radians();
-        river.push((x, y * -1.));
-
-        // if vertex_part == 158 && vertex_part_ring == 0 {
-        //     // shape.push((first_value * r, second_value*(-1.) * r));
-        //     shape.push((x, y * -1.));
-        // }
-        //  if idx > 50000 {break}
-    }
+    // let river = load_rivers(&shape);
+    let river = vec![];
 
     //println!("{:?}", shape);
     //let shape = vec!((0.,0.), (500., -950.), (1000., 0.), (1000.,-1000.), (500., -950.), (0.,-1000.));
@@ -138,12 +165,13 @@ fn new_game(assets: &mut Assets) -> Game {
 
     // let player1 = Player::new("Redosia", Some(ai1));
     let player1 = Player::new("Redosia", None);
-    let player2 = Player::new("Bluekraine", Some(ai2)); // Umberaine?
-    // let player2 = Player::new("Bluegaria", Some(ai2));
-    // let player3 = Player::new("Greenland", Some(ai3));
-    // let player4 = Player::new("Violetnam", Some(ai4));
+    // let player2 = Player::new("Bluekraine", Some(ai2)); // Umberaine?
+    let player2 = Player::new("Bluegaria", Some(ai2));
+    let player3 = Player::new("Greenland", Some(ai3));
+    let player4 = Player::new("Violetnam", Some(ai4));
 
-    let players = vec![player1, player2, ];//player3, player4];
+    let players = vec![player1, player2, player3, player4];
+    // let players = vec![player1, player2, ];//player3, player4];
 
     let world = World::new();
 

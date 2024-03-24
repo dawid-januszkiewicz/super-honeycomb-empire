@@ -1,0 +1,185 @@
+Field,Label,Value
+id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+title,Title of Dataset,Ukraine - Subnational Administrative Boundaries
+name,Dataset URL,cod-ab-ukr
+notes,Description,Ukraine  administrative level 0-4 boundaries.  See caveats. The administrative level 0 and 1 layers are suitable for database or GIS linkage to the Ukraine - Subnational Population Statistics tables. Vetting and live service provision by Information Technology Outreach Services (ITOS) with funding from USAID. An edge-matched version of this COD-AB is available as Ukraine - Subnational Edge-matched Administrative Boundaries. Unfamiliar users may wish to be informed that administrative level 1 feature [UA80] is Kyiv city.  Feature [UA32] is Kyivska ('Kyiv') oblast.
+dataset_source,Source,State Scientific Production Enterprise “Kartographia”
+organization,Contributor,OCHA Field Information Services Section (FISS)
+dataset_date,Reference Period,[2023-02-01T00:00:00 TO *]
+last_modified,Updated,2023-06-23T16:03:08.272983
+data_update_frequency,Expected Update Frequency,Every year
+groups,Location,Ukraine
+license_title,License,Creative Commons Attribution for Intergovernmental Organisations
+methodology,Methodology,Other
+methodology_other,Define Methodology,Sourced from Ukraine Kartografia.  P-coding by OCHA and ITOS.
+caveats,Caveats/Comments,"“The Ukrainian government has not fully implemented its new administrative structure reforms in the Autonomous Republic of Crimea [UA01] and Sevastopol [UA85]. Consequently, 31 ADM4 features within the Sevastopol ADM3 polygon retain P-codes that do not correctly conform to [UA8500000]. This will be rectified in a COD-AB update once the government has regained control to the Crimean Peninsula."""
+tags,Tags,administrative boundaries-divisions
+resource_1_created,Created,2023-06-23T16:03:08.603282
+resource_1_description,Description,"Ukraine administrative level 0-4 alternate gazetteer, containing official Minrehion (Ministry of Communities and Territories Development) codes which are currently in use in Ukraine and KOATUU codes which were in use in Ukraine before 2020."
+resource_1_format,File Format,XLSX
+resource_1_download_url,Download URL,https://data.humdata.org/dataset/d23f529f-31e4-4021-a65b-13987e5cfb42/resource/2dfa3f1e-562f-46d2-bf51-d39c5a74b781/download/ukr_gazetteer_v01.xlsx
+resource_1_id,Resource ID,2dfa3f1e-562f-46d2-bf51-d39c5a74b781
+resource_1_last_modified,Updated,2023-06-23T16:03:08.272983
+resource_1_metadata_modified,Metadata Updated,2023-06-30T20:48:06.966336
+resource_1_microdata,Microdata,False
+resource_1_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_1_resource_type,Resource Type,file.upload
+resource_1_name,Resource Name,UKR_gazetteer_v01.xlsx
+resource_1_mimetype,MIME Type,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+resource_1_size,Size,1.9M
+resource_2_created,Created,2021-12-22T08:44:33.123510
+resource_2_description,Description,Ukraine administrative level 0-4 gazetteer  See caveats
+resource_2_format,File Format,XLSX
+resource_2_download_url,Download URL,https://data.humdata.org/dataset/d23f529f-31e4-4021-a65b-13987e5cfb42/resource/fc483df6-f1b5-4692-bfe3-4e7c88297999/download/ukr_adminboundaries_tabulardata.xlsx
+resource_2_id,Resource ID,fc483df6-f1b5-4692-bfe3-4e7c88297999
+resource_2_last_modified,Updated,2023-04-04T20:12:40.296534
+resource_2_metadata_modified,Metadata Updated,2023-06-30T20:48:06.966583
+resource_2_microdata,Microdata,False
+resource_2_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_2_resource_type,Resource Type,file.upload
+resource_2_name,Resource Name,UKR_AdminBoundaries_TabularData.xlsx
+resource_2_mimetype,MIME Type,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+resource_2_size,Size,3.2M
+resource_3_created,Created,2022-01-31T11:26:45.613102
+resource_3_description,Description,Ukraine administrative level 0-4 boundary shapefiles See caveats
+resource_3_format,File Format,SHP
+resource_3_download_url,Download URL,https://data.humdata.org/dataset/d23f529f-31e4-4021-a65b-13987e5cfb42/resource/4105bb4d-5a9d-4824-a1d7-53141cf47c44/download/ukr_admbnda_sspe_20230201_shp.zip
+resource_3_id,Resource ID,4105bb4d-5a9d-4824-a1d7-53141cf47c44
+resource_3_last_modified,Updated,2023-02-03T19:02:24.993241
+resource_3_metadata_modified,Metadata Updated,2023-06-30T20:48:06.966788
+resource_3_microdata,Microdata,False
+resource_3_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_3_resource_type,Resource Type,file.upload
+resource_3_name,Resource Name,ukr_admbnda_sspe_20230201_SHP.zip
+resource_3_mimetype,MIME Type,application/x-zip-compressed
+resource_3_size,Size,76.8M
+resource_4_created,Created,2021-12-22T10:33:01.842913
+resource_4_description,Description,Ukraine administrative level 0-4 boundary geodatabase See caveats
+resource_4_format,File Format,Geodatabase
+resource_4_download_url,Download URL,https://data.humdata.org/dataset/d23f529f-31e4-4021-a65b-13987e5cfb42/resource/8cf98718-441c-4263-a8f9-8f718047608d/download/ukr_adminboundaries_candidate.gdb.zip
+resource_4_id,Resource ID,8cf98718-441c-4263-a8f9-8f718047608d
+resource_4_last_modified,Updated,2023-02-03T19:02:32.368702
+resource_4_metadata_modified,Metadata Updated,2023-06-30T20:48:06.966979
+resource_4_microdata,Microdata,False
+resource_4_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_4_resource_type,Resource Type,file.upload
+resource_4_name,Resource Name,UKR_AdminBoundaries_candidate.gdb.zip
+resource_4_mimetype,MIME Type,application/x-zip-compressed
+resource_4_size,Size,44.2M
+resource_5_created,Created,2023-02-02T19:48:09.391678
+resource_5_description,Description,Ukraine administrative level 0-4 boundary EMF files See caveats
+resource_5_format,File Format,EMF
+resource_5_download_url,Download URL,https://data.humdata.org/dataset/d23f529f-31e4-4021-a65b-13987e5cfb42/resource/fc90dae4-fc3a-49c8-ac9c-4408e8f6a70e/download/ukr_admbnda_sspe_20230201_emf.zip
+resource_5_id,Resource ID,fc90dae4-fc3a-49c8-ac9c-4408e8f6a70e
+resource_5_last_modified,Updated,2023-02-03T19:02:34.967762
+resource_5_metadata_modified,Metadata Updated,2023-06-30T20:48:06.967161
+resource_5_microdata,Microdata,False
+resource_5_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_5_resource_type,Resource Type,file.upload
+resource_5_name,Resource Name,ukr_admbnda_sspe_20230201_EMF.zip
+resource_5_mimetype,MIME Type,application/x-zip-compressed
+resource_5_size,Size,4.3M
+resource_6_created,Created,2023-03-22T18:42:04.662444
+resource_6_description,Description,"This map service contains OCHA Common Operational Datasets for Ukraine: Administrative Boundaries, in English. Russian and Ukranian services are also available.  The service is available as ESRI Map, ESRI Feature, WMS, and KML Services. See the OCHA COD/FOD terms of use for access and use constraints."
+resource_6_format,File Format,Geoservice
+resource_6_download_url,Download URL,https://codgis.itos.uga.edu/arcgis/rest/services/COD_External/UKR_EN/MapServer
+resource_6_id,Resource ID,00690851-f266-4272-8e23-5257de4f3a6f
+resource_6_last_modified,Updated,2023-03-22T18:42:04.646095
+resource_6_metadata_modified,Metadata Updated,2023-12-15T08:43:03.637491
+resource_6_microdata,Microdata,False
+resource_6_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_6_resource_type,Resource Type,api
+resource_6_name,Resource Name,COD_External/UKR_EN (MapServer)
+resource_6_mimetype,MIME Type,
+resource_6_size,Size,0.0B
+resource_7_created,Created,2023-03-22T18:42:06.085421
+resource_7_description,Description,"This map service contains OCHA Common Operational Datasets for Ukraine: Administrative Boundaries, in English. Russian and Ukranian services are also available.  The service is available as ESRI Map, ESRI Feature, WMS, and KML Services. See the OCHA COD/FOD terms of use for access and use constraints."
+resource_7_format,File Format,Geoservice
+resource_7_download_url,Download URL,https://codgis.itos.uga.edu/arcgis/rest/services/COD_External/UKR_EN_All_Scales/MapServer
+resource_7_id,Resource ID,b4bf8585-8f75-42e0-b780-8e560b4ccc29
+resource_7_last_modified,Updated,2023-03-22T18:42:06.065574
+resource_7_metadata_modified,Metadata Updated,2023-12-15T08:43:03.637710
+resource_7_microdata,Microdata,False
+resource_7_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_7_resource_type,Resource Type,api
+resource_7_name,Resource Name,COD_External/UKR_EN_All_Scales (MapServer)
+resource_7_mimetype,MIME Type,
+resource_7_size,Size,0.0B
+resource_8_created,Created,2023-03-22T18:42:07.522226
+resource_8_description,Description,"This map service contains OCHA Common Operational Datasets for Ukraine: Administrative Boundaries.  As a map service it is intended to be used in conjunction with the basemap located at https://codgis.itos.uga.edu/arcgis/rest/services/COD_External/UKR_EN/MapServer (also available in RU and UA). The service also provides feature access to Administrative Boundaries geometry and taxonomy.  The service is available as ESRI Map, WMS, ESRI Feature, WFS and KML Services"
+resource_8_format,File Format,Geoservice
+resource_8_download_url,Download URL,https://codgis.itos.uga.edu/arcgis/rest/services/COD_External/UKR_pcode/MapServer
+resource_8_id,Resource ID,36caf1a5-054c-4593-8c31-40284c4b1039
+resource_8_last_modified,Updated,2023-03-22T18:42:07.507444
+resource_8_metadata_modified,Metadata Updated,2023-12-15T08:43:03.637852
+resource_8_microdata,Microdata,False
+resource_8_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_8_resource_type,Resource Type,api
+resource_8_name,Resource Name,COD_External/UKR_pcode (MapServer)
+resource_8_mimetype,MIME Type,
+resource_8_size,Size,0.0B
+resource_9_created,Created,2023-03-22T18:42:08.889514
+resource_9_description,Description,"This map service contains OCHA Common Operational Datasets for Ukraine: Administrative Boundaries.  As a map service it is intended to be used in conjunction with the basemap located at https://codgis.itos.uga.edu/arcgis/rest/services/COD_External/UKR_EN/MapServer (also available in RU and UA). The service also provides feature access to Administrative Boundaries geometry and taxonomy.  The service is available as ESRI Map, WMS, ESRI Feature, WFS and KML Services"
+resource_9_format,File Format,Geoservice
+resource_9_download_url,Download URL,https://codgis.itos.uga.edu/arcgis/rest/services/COD_External/UKR_pcode/FeatureServer
+resource_9_id,Resource ID,26ca2765-1ecf-4447-a7eb-2f87fe84de43
+resource_9_last_modified,Updated,2023-03-22T18:42:08.875332
+resource_9_metadata_modified,Metadata Updated,2023-12-15T08:43:03.637970
+resource_9_microdata,Microdata,False
+resource_9_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_9_resource_type,Resource Type,api
+resource_9_name,Resource Name,COD_External/UKR_pcode (FeatureServer)
+resource_9_mimetype,MIME Type,
+resource_9_size,Size,0.0B
+resource_10_created,Created,2023-03-22T18:42:10.430054
+resource_10_description,Description,"This map service contains OCHA Common Operational Datasets for Ukraine: Administrative Boundaries, in Russian. English and Ukranian services are also available. The service is available as ESRI Map, ESRI Feature, WMS, and KML Services. See the OCHA COD/FOD terms of use for access and use constraints."
+resource_10_format,File Format,Geoservice
+resource_10_download_url,Download URL,https://codgis.itos.uga.edu/arcgis/rest/services/COD_External/UKR_RU/MapServer
+resource_10_id,Resource ID,5b194ebb-a805-4874-880c-8a49c7c6c875
+resource_10_last_modified,Updated,2023-03-22T18:42:10.410346
+resource_10_metadata_modified,Metadata Updated,2023-12-15T08:43:03.638080
+resource_10_microdata,Microdata,False
+resource_10_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_10_resource_type,Resource Type,api
+resource_10_name,Resource Name,COD_External/UKR_RU (MapServer)
+resource_10_mimetype,MIME Type,
+resource_10_size,Size,0.0B
+resource_11_created,Created,2023-03-22T18:42:11.767832
+resource_11_description,Description,"This map service contains OCHA Common Operational Datasets for Ukraine: Administrative Boundaries, in Russian. English and Ukrainian services are also available.  The service is available as ESRI Map, ESRI Feature, WMS, and KML Services. See the OCHA COD/FOD terms of use for access and use constraints."
+resource_11_format,File Format,Geoservice
+resource_11_download_url,Download URL,https://codgis.itos.uga.edu/arcgis/rest/services/COD_External/UKR_RU_All_Scales/MapServer
+resource_11_id,Resource ID,0b5d0659-e9ae-4325-8a0e-8ef0a9a8ce53
+resource_11_last_modified,Updated,2023-03-22T18:42:11.751538
+resource_11_metadata_modified,Metadata Updated,2023-12-15T08:43:03.638256
+resource_11_microdata,Microdata,False
+resource_11_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_11_resource_type,Resource Type,api
+resource_11_name,Resource Name,COD_External/UKR_RU_All_Scales (MapServer)
+resource_11_mimetype,MIME Type,
+resource_11_size,Size,0.0B
+resource_12_created,Created,2023-03-22T18:42:13.315249
+resource_12_description,Description,"This map service contains OCHA Common Operational Datasets for Ukraine: Administrative Boundaries, in Ukrainian. Russian and English services are also available.  The service is available as ESRI Map, ESRI Feature, WMS, and KML Services. See the OCHA COD/FOD terms of use for access and use constraints."
+resource_12_format,File Format,Geoservice
+resource_12_download_url,Download URL,https://codgis.itos.uga.edu/arcgis/rest/services/COD_External/UKR_UA/MapServer
+resource_12_id,Resource ID,1c0a1ccc-cad4-426f-b531-64705a890529
+resource_12_last_modified,Updated,2023-03-22T18:42:13.299052
+resource_12_metadata_modified,Metadata Updated,2023-12-15T08:43:03.638468
+resource_12_microdata,Microdata,False
+resource_12_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_12_resource_type,Resource Type,api
+resource_12_name,Resource Name,COD_External/UKR_UA (MapServer)
+resource_12_mimetype,MIME Type,
+resource_12_size,Size,0.0B
+resource_13_created,Created,2023-03-22T18:42:14.920738
+resource_13_description,Description,"This map service contains OCHA Common Operational Datasets for Ukraine: Administrative Boundaries, in Ukrainian. English and Russian services are also available.  The service is available as ESRI Map, ESRI Feature, WMS, and KML Services. See the OCHA COD/FOD terms of use for access and use constraints."
+resource_13_format,File Format,Geoservice
+resource_13_download_url,Download URL,https://codgis.itos.uga.edu/arcgis/rest/services/COD_External/UKR_UA_All_Scales/MapServer
+resource_13_id,Resource ID,a38c07a0-16bf-44c1-bd77-eb9e2b0e16e8
+resource_13_last_modified,Updated,2023-03-22T18:42:14.896283
+resource_13_metadata_modified,Metadata Updated,2023-12-15T08:43:03.638686
+resource_13_microdata,Microdata,False
+resource_13_dataset_id,Dataset ID,d23f529f-31e4-4021-a65b-13987e5cfb42
+resource_13_resource_type,Resource Type,api
+resource_13_name,Resource Name,COD_External/UKR_UA_All_Scales (MapServer)
+resource_13_mimetype,MIME Type,
+resource_13_size,Size,0.0B

@@ -15,6 +15,7 @@ macroquad = "0.3.25"
 rand = "0.8.5"
 strum = { version = "0.25", features = ["derive"] }
 fraction = "0.14.0"
+shapefile = "0.6.0"
 # pixels dependencies
 # pixels = "0.13.0"
 # log = "0.4.19"

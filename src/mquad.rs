@@ -44,7 +44,7 @@ pub struct Assets {
     pub water_material: Material,
     pub init_layout: Layout<f32>,
     pub shape: Vec<(f32, f32)>,
-    pub river: Vec<(f32, f32)>,
+    pub river: Vec<(usize, f32, f32)>,
 }
 
 impl World {
@@ -145,13 +145,15 @@ impl World {
 
 
 fn draw_map_control_summary(game: &Game) {
+    let width = macroquad::window::screen_width();
+    let ratio = 0.83; // 1700 / 2048
     let mut dy = 0.;
     for (idx, player) in game.players.iter().enumerate() {
         let color = owner_to_color(&Some(idx));
         let no_owned = game.world.cubes_by_ownership.get(&idx).unwrap().len();
         let percentage = no_owned as f32 / game.world.len() as f32 * 100.;
         let text = format!("{}: {:.2}%", player.name, percentage);
-        let (x, mut y) = (1700., 50.);
+        let (x, mut y) = (ratio * width, 50.);
         y += dy;
         dy += 40.;
         draw_text(&text, x, y, 40., color);
@@ -179,25 +181,34 @@ pub fn draw(game: &Game, &layout: &Layout<f32>, assets: &Assets, time: f32) {
     draw_text(&get_fps().to_string(), 50.0, 50.0, 40., BLACK);
     draw_map_control_summary(game);
 
-    // let mut shape = assets.shape.clone();
-    // let mut shape = assets.river.clone();
-
-    // let x_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.0));
-    // let y_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.1));
-    // shape = shape.iter().map(|(x, y)| (x - x_min, y - y_min)).collect();
-
-    // for j in 1..shape.len() {
-    //     let (mut x, mut y) = shape[j];
-    //     x *= layout.size[0] / assets.init_layout.size[0];
-    //     y *= layout.size[1] / assets.init_layout.size[1];
-    //     x += layout.origin[0];
-    //     y += layout.origin[1];
-    //     draw_circle(x, y, 1., RED);
-    // }
-    // World::draw_shape_outline(shape, &layout, &assets.init_layout);
     for cs in &game.world.rivers {
         draw_river(&cs, &layout);
     }
+
+    // let mut shape = assets.shape.clone();
+    let mut shape = assets.river.clone();
+
+    // let x_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.1));
+    // let y_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.2));
+    // shape = shape.iter().map(|(id, x, y)| (*id, x - x_min, y - y_min)).collect();
+    // let ids: std::collections::HashSet<usize> = shape.iter().map(|(id, x, y)| *id).collect();
+    // let ids: Vec<usize> = ids.into_iter().collect();
+    // println!("ids len: {:}", ids.len());
+    // let COLORS = vec!(BEIGE, BLACK, BLUE, BROWN, DARKBLUE, DARKBROWN, DARKGREEN, DARKPURPLE, GOLD, GREEN, LIME, MAGENTA, MAROON, ORANGE, PINK, PURPLE, RED, SKYBLUE, VIOLET, WHITE, YELLOW,);
+    let COLORS = vec!(BEIGE, BLACK, BLUE, BROWN, GOLD, GREEN, LIME, MAGENTA, MAROON, ORANGE, PINK, PURPLE, RED, VIOLET, WHITE, YELLOW,);
+
+    for j in 1..shape.len() {
+        let (id, mut x, mut y) = shape[j];
+        x *= layout.size[0] / assets.init_layout.size[0];
+        y *= layout.size[1] / assets.init_layout.size[1];
+        x += layout.origin[0];
+        y += layout.origin[1];
+        // let id_idx = ids.iter().position(|id_| id == *id_).unwrap();
+        let color = COLORS[j % COLORS.len()];
+        // let color = RED;
+        draw_circle(x, y, 8., color);
+    }
+    // World::draw_shape_outline(shape, &layout, &assets.init_layout);
 }
 
 pub fn draw_editor(editor: &Editor, layout: &Layout<f32>, assets: &Assets, time: f32) {

@@ -58,7 +58,7 @@ pub enum ShapeGen {
 }
 pub enum RiverGen {
     Random(usize, f32),
-    Custom(Vec<(f32, f32)>),
+    Custom(Vec<(usize, f32, f32)>),
 }
 
 impl World {
@@ -116,49 +116,150 @@ impl World {
             RiverGen::Random(ln, th) => {
                 self.rivers = crate::river::generate_river(land_tiles, ln, th);
             }
-            RiverGen::Custom(river) => {
+            RiverGen::Custom(mut river) => {
                 // TODO new algo:
                 // iter line by line
                 // round to find all cubes
                 // draw some line along the cube path
-                let mut counts: HashMap<CubeSide, usize> = HashMap::new();
-                self.rivers = HashSet::new();
 
-                let x_min = river.iter().fold(f32::NAN, |a, &b| a.min(b.0));
-                let y_min = river.iter().fold(f32::NAN, |a, &b| a.min(b.1));
-                let river_2: Vec<_> = river.iter().map(|(x, y)| (x - x_min, y - y_min)).collect();
+                // let x_min = river.iter().fold(f32::NAN, |a, &b| a.min(b.1));
+                // let y_min = river.iter().fold(f32::NAN, |a, &b| a.min(b.2));
+                // river = river.iter().map(|(idx, x, y)| (*idx, x - x_min, y - y_min)).collect();
 
-                let (mut x_factor, mut y_factor) = (1.5, f32::sqrt(3.));
-                if matches!(init_layout.orientation, OrientationKind::Pointy(_)) {
-                    (x_factor, y_factor) = (y_factor, x_factor);
-                }
-                for (mut x, mut y) in river_2 {
-                    // x = x / (init_layout.size[0] * x_factor);
-                    // y = y / (init_layout.size[1] * y_factor);
-                    let cube = pixel_to_cube(&init_layout, [x, y]);
+                // 1. construct cube paths
+                let mut rivers_sets: HashMap<usize, HashMap<Cube<i32>, usize>> = HashMap::new();
+                // let mut river_line: HashMap<Cube<i32>, usize> = HashMap::new();
+                for (cube_idx, (id, x, y)) in river.iter().enumerate() {
+                    let cube = pixel_to_cube(&init_layout, [*x, *y]);
                     let origin: Cube<i32> = cube.round();
-
-                    let corners = Cube::<f32>::from(origin).corners(&init_layout);
-                    let mut corners_2 = corners.clone();
-                    corners_2.rotate_left(1);
-                    let segments: Vec<_> = corners.iter().zip(corners_2.iter()).collect();
-                    let midpoints: Vec<_> = segments.iter().map(|(p1 , p2)| (**p1 + **p2) / 2.).collect();
-                    let diffs: Vec<_> = midpoints.iter().map(|p| (x - p.0).powf(2.) + (y - p.1).powf(2.)).collect();
-
-                    let idx = diffs.iter()
-                        .enumerate()
-                        .max_by(|(_, a), (_, b)| a.total_cmp(b))
-                        .map(|(index, _)| index)
-                        .unwrap();
-
-                    let dir = DIRECTIONS[idx];
-                    let segment = CubeSide::from(Cube::<f32>::from(origin) + dir/2);
-                    let count = counts.entry(segment).or_insert(0);
-                    *count += 1;
-                    // self.rivers.insert(segment);
-
+                    rivers_sets.entry(*id).or_insert(HashMap::new()).insert(origin, cube_idx);
+                    // river_line.insert(origin, cube_idx);
                 }
-                self.rivers = counts.iter().filter_map(|(k, v)| if *v > 0 {Some(*k)} else {None}).collect();
+
+                // 2. sort cube paths by insertion order
+                let mut rivers: Vec<Vec<Cube<i32>>> = Vec::new();
+                for river_line in rivers_sets.values_mut() {
+                    let mut line: Vec<(&Cube<i32>, &usize)> = river_line.iter().collect();
+                    line.sort_by(|(c1, i1), (c2, i2)| i1.cmp(i2));
+                    let line: Vec<Cube<i32>> = line.iter().map(|(c, i)| **c).collect();
+                    rivers.push(line);
+                }
+
+                // 3. construct segment lines
+                for river_line in rivers {
+                    println!("river_line: {:?}", river_line);
+                    // let mut prev_cube = river_line[0];
+                    let mut rivers_segments: Vec<CubeSide> = Vec::new();
+                    let mut origin_cube = Cube::new(0,0); // initialised to satisfy borrowck
+                    for idx in 0..(river_line.len() - 1) {
+                        // let idx_plus_one = if idx < river_line.len() {idx + 1} else {idx};
+                        let cube = river_line[idx];
+                        let next_cube = river_line[idx + 1];
+                        let dir = next_cube - cube;
+                        println!("cube: {:}, next_cube: {:}, dir: {:}", cube, next_cube, dir);
+                        let dir_idx = DIRECTIONS.iter().position(|c| c == &dir).unwrap_or_else(|| 0);
+                        let mut dir_iter = DIRECTIONS.iter().cycle().skip(dir_idx);
+
+                        if idx == 0 {
+                            origin_cube = cube;
+                            let start_dir = dir_iter.next().unwrap();
+                            rivers_segments.push(CubeSide::from(Cube::<f32>::from(cube) + (*start_dir/2)));
+                            // let start_dir = DIRECTIONS[(dir_idx + 1) % 6];
+                            // rivers_segments.push(CubeSide::from(Cube::<f32>::from(cube) + (start_dir/2)));
+                        }
+
+                        // let start_seg_dir = Cube::<i32>::from((Cube::<f32>::from(rivers_segments.last().unwrap()) - Cube::<f32>::from(cube)) * 2.);
+                        // let seg_dir = start_seg_dir
+                        // while this_seg_dir != start_seg_dir {
+                        //     let value = CubeSide::from(Cube::<f32>::from(cube) + (*this_seg_dir / 2));
+                        //     rivers_segments.push(value);
+                        // }
+
+                        let mut seg_dir_idx = (dir_idx + 1) % 6;
+                        // let mut prev_cube = river_line[max(0, (idx as i32 - 1)) as usize];
+                        while seg_dir_idx != dir_idx {
+                            let segment = rivers_segments.last().unwrap();
+                            // if idx > 0 {prev_cube = river_line[idx - 1]}
+
+                            // println!("segment: {:}, cube: {:}, origin_cube: {:}", segment, cube, origin_cube);
+                            // println!("segment - cube: {:}", *segment - cube);
+                            // println!("(segment - cube) * 2: {:}", (*segment - origin_cube) * 2);
+                            // let seg_dir = ((*segment - origin_cube) * 2).int();
+                            let seg_dir: Cube<i32> = ((Cube::<f32>::from(*segment) - Cube::<f32>::from(origin_cube)) * 2.).round();
+
+
+                            // let seg_dir: Cube<i32> = (Cube::<f32>::from(*segment - prev_cube) * 2.).round();
+                            println!("seg_dir: {:}", seg_dir);
+                            seg_dir_idx = DIRECTIONS.iter().position(|c| c == &seg_dir).unwrap();
+                            let next_dir = DIRECTIONS.iter().cycle().skip((seg_dir_idx + 1)).next().unwrap();
+                            println!("next_dir: {:}",next_dir);
+                            let value = CubeSide::from(Cube::<f32>::from(cube) + (*next_dir / 2));
+                            println!("value: {:}", value);
+                            rivers_segments.push(value);
+                            origin_cube = cube;
+                            // print!("rs: {:?}", rivers_segments);
+                            // self.rivers.insert()
+                        }
+
+
+                        // let mut seg_dir_idx = (dir_idx + 1) % 6;//(dir_idx + 1) % 6;
+                        // let mut prev_cube = river_line[max(0, (idx as i32 - 1)) as usize];
+                        // while seg_dir_idx != dir_idx {
+                        //     let segment = rivers_segments.last().unwrap();
+                        //     if idx > 0 {prev_cube = river_line[idx - 1]}
+                        //     let seg_dir = ((*segment - prev_cube) * 2).int();
+                        //     // let seg_dir: Cube<i32> = (Cube::<f32>::from(*segment - prev_cube) * 2.).round();
+                        //     println!("seg_dir: {:}",seg_dir);
+                        //     seg_dir_idx = DIRECTIONS.iter().position(|c| c == &seg_dir).unwrap();
+                        //     let next_dir = DIRECTIONS.iter().cycle().skip(seg_dir_idx + 1).next().unwrap();
+                        //     println!("next_dir: {:}",next_dir);
+                        //     let value = CubeSide::from(Cube::<f32>::from(cube) + (*next_dir / 2));
+                        //     rivers_segments.push(value);
+                        //     // self.rivers.insert()
+                        // }
+
+                    }
+                    self.rivers.extend(rivers_segments);
+                }
+
+                // let mut counts: HashMap<CubeSide, usize> = HashMap::new();
+                // self.rivers = HashSet::new();
+
+                // let x_min = river.iter().fold(f32::NAN, |a, &b| a.min(b.0));
+                // let y_min = river.iter().fold(f32::NAN, |a, &b| a.min(b.1));
+                // let river_2: Vec<_> = river.iter().map(|(x, y)| (x - x_min, y - y_min)).collect();
+
+                // let (mut x_factor, mut y_factor) = (1.5, f32::sqrt(3.));
+                // if matches!(init_layout.orientation, OrientationKind::Pointy(_)) {
+                //     (x_factor, y_factor) = (y_factor, x_factor);
+                // }
+                // for (mut x, mut y) in river_2 {
+                //     // x = x / (init_layout.size[0] * x_factor);
+                //     // y = y / (init_layout.size[1] * y_factor);
+                //     let cube = pixel_to_cube(&init_layout, [x, y]);
+                //     let origin: Cube<i32> = cube.round();
+
+                //     let corners = Cube::<f32>::from(origin).corners(&init_layout);
+                //     let mut corners_2 = corners.clone();
+                //     corners_2.rotate_left(1);
+                //     let segments: Vec<_> = corners.iter().zip(corners_2.iter()).collect();
+                //     let midpoints: Vec<_> = segments.iter().map(|(p1 , p2)| (**p1 + **p2) / 2.).collect();
+                //     let diffs: Vec<_> = midpoints.iter().map(|p| (x - p.0).powf(2.) + (y - p.1).powf(2.)).collect();
+
+                //     let idx = diffs.iter()
+                //         .enumerate()
+                //         .max_by(|(_, a), (_, b)| a.total_cmp(b))
+                //         .map(|(index, _)| index)
+                //         .unwrap();
+
+                //     let dir = DIRECTIONS[idx];
+                //     let segment = CubeSide::from(Cube::<f32>::from(origin) + dir/2);
+                //     let count = counts.entry(segment).or_insert(0);
+                //     *count += 1;
+                //     // self.rivers.insert(segment);
+
+                // }
+                // self.rivers = counts.iter().filter_map(|(k, v)| if *v > 0 {Some(*k)} else {None}).collect();
                 println!("rivers: {:?}", self.rivers);
             }
         }

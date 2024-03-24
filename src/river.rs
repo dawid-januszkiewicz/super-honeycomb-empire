@@ -12,6 +12,7 @@ use crate::DIRECTIONS;
 use crate::REV_DIRECTIONS;
 
 use std::collections::HashSet;
+use std::ops::Add;
 use std::ops::Deref;
 use std::ops::Index;
 
@@ -19,6 +20,8 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
+use std::ops::Mul;
+use std::ops::Sub;
 
 // Cube(1, -0.5, 0.5) becomes CubeSide(Cube(1, -0, 0), Cube(false, true, true))
 // q = side.int.q + (side.half.q).copysign(side.int.q)
@@ -58,10 +61,23 @@ impl CubeSide {
         println!("{:}", s);
         s
     }
+    pub fn int(self) -> Cube<i32> {
+        let q = self.int.q().abs() * if self.sign.q() {1} else {-1};
+        let r = self.int.r().abs() * if self.sign.r() {1} else {-1};
+        Cube::new(q, r)
+    }
 }
 
 impl From<&CubeSide> for Cube<f32> {
     fn from(cube: &CubeSide) -> Self {
+        let q = cube.int.q() as f32 + (if cube.half.q() {0.5} else {0.}) * (if cube.sign.q() {1.} else {-1.});
+        let r = cube.int.r() as f32 + (if cube.half.r() {0.5} else {0.}) * (if cube.sign.r() {1.} else {-1.});
+        Self::new(q, r)
+    }
+}
+
+impl From<CubeSide> for Cube<f32> {
+    fn from(cube: CubeSide) -> Self {
         let q = cube.int.q() as f32 + (if cube.half.q() {0.5} else {0.}) * (if cube.sign.q() {1.} else {-1.});
         let r = cube.int.r() as f32 + (if cube.half.r() {0.5} else {0.}) * (if cube.sign.r() {1.} else {-1.});
         Self::new(q, r)
@@ -94,6 +110,46 @@ impl Debug for CubeSide {
          .field(&cube_float.r())
          .field(&cube_float.s())
          .finish()
+    }
+}
+
+// impl Add<Cube<i32>> for CubeSide {
+//     type Output = Self;
+//     fn add(mut self, rhs: Cube<i32>) -> Self::Output {
+//         let sign_before = self.int();
+//         self.int = self.int() + rhs;
+//         let sign_after = self.int();
+//         self
+//     }
+// }
+
+// impl Sub<Cube<i32>> for CubeSide {
+//     type Output = Self;
+//     fn sub(mut self, rhs: Cube<i32>) -> Self::Output {
+//         self.int = self.int() - rhs;
+//         self
+//     }
+// }
+
+impl Mul<i32> for CubeSide {
+    type Output = Self;
+    fn mul(mut self, rhs: i32) -> Self::Output {
+        println!("mul<i32> for cubeside, i32={:}", rhs);
+        println!("bf self: {:}, self.int: {:}", self, self.int);
+        self.int = self.int() * rhs;
+        println!("af self: {:}, self.int: {:}", self, self.int);
+        let div = (rhs / 2, rhs % 2);
+        if self.half.q() {
+            self.int += Cube::new((div.0 != 0) as i32, 0);
+        }
+        if self.half.r() {
+            self.int += Cube::new(0, (div.0 != 0) as i32);
+        }
+        println!("af if self: {:}, self.int: {:}", self, self.int);
+        // self.int += Cube::new(div.0, div.0);
+        self.half = Cube::new((div.1 != 0) & self.half.q(), (div.1 != 0) & self.half.r());
+        self.sign = if div.1 == 0 {self.sign} else {Cube::new(!self.sign.q(), !self.sign.r())};
+        self
     }
 }
 

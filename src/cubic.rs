@@ -16,6 +16,7 @@ use std::fmt::Formatter;
 use std::fmt::Result;
 
 use std::f64::consts::PI;
+use std::ops::SubAssign;
 
 use serde::{Serialize, Deserialize};
 
@@ -166,6 +167,15 @@ impl<T, U> Sub<Cube<U>> for Cube<T> where T: Sub<U> {
 
     fn sub(self, rhs: Cube<U>) -> Self::Output {
         Cube(self.0 - rhs.0, self.1 - rhs.1)
+    }
+}
+
+impl<T: Copy, U> SubAssign<Cube<U>> for Cube<T> where T: Sub<U, Output=T> {
+    fn sub_assign(&mut self, other: Cube<U>) {
+        *self = Self (
+            self.0 - other.0,
+            self.1 - other.1,
+        );
     }
 }
 
