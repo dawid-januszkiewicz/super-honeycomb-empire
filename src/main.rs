@@ -108,6 +108,7 @@ async fn load_assets() -> Assets {
     //let v: serde_json::Value = serde_json::from_str(data).unwrap();
     // let shape: Vec<(f32, f32)> = serde_json::from_str(data).unwrap();
     // Open the CSV file
+    std::fs::create_dir_all("assets/shapes");
     shapefiles::extract_vertices("assets/ua_shp/ukr_admbnda_adm0_sspe_20230201.shp", "assets/shapes/ua-100k_v2.csv");
     let file = File::open("assets/shapes/ua-100k_v2.csv").unwrap();
     let mut rdr = csv::Reader::from_reader(file);

@@ -62,9 +62,11 @@ pub fn poll_map_editor_inputs(editor: &mut Editor, layout: &mut Layout<f32>) -> 
     }
 
     if is_key_down(KeyCode::F5) {
+        std::fs::create_dir_all("assets/scenarios");
         editor.to_json("assets/scenarios/quicksave.json");
     }
     if is_key_down(KeyCode::F9) {
+        std::fs::create_dir_all("assets/scenarios");
         *editor = Editor::from_json("assets/scenarios/quicksave.json");
     }
 
@@ -112,9 +114,11 @@ pub fn poll_inputs(game: &mut Game, layout: &mut Layout<f32>) -> bool {
 
     if is_key_down(KeyCode::F5) {
         //save_map(&game.world.world, "assets/saves/quicksave.json");
+        std::fs::create_dir_all("assets/saves");
         game.to_json("assets/saves/quicksave.json");
     }
     if is_key_down(KeyCode::F9) {
+        std::fs::create_dir_all("assets/saves");
         *game = Game::from_json("assets/saves/quicksave.json");
     }
 
