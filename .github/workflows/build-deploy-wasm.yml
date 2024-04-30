@@ -1,0 +1,29 @@
+name: Build and Deploy to gh-pages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build app
+      run: ./wasm-bindgen-macroquad.sh cubic --release
+        
+    - name: Deploy to gh-pages
+      run: |
+        git config --global user.email "d.januszkiewicz@gmail.com"
+        git config --global user.name "Alicja Januszkiewicz"
+        git checkout --orphan gh-pages
+        git rm -rf .
+        git clean -dfx
+        mv dist/* .  # Move artifacts to root directory
+        git add .
+        git commit -m "Deploy binary artifact to gh-pages"
+        git push origin gh-pages --force
