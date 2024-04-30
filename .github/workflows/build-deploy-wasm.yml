@@ -12,6 +12,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: add wasm target
+      run: rustup target add wasm32-unknown-unknown
       
     - name: Build app
       run: ./wasm-bindgen-macroquad.sh cubic --release
