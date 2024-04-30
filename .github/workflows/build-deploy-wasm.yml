@@ -13,8 +13,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: add wasm target
-      run: rustup target add wasm32-unknown-unknown
+    - name: Configure rustup
+      run: |
+        rustup target add wasm32-unknown-unknown
+        rustup install nightly
+        rustup default nightly
       
     - name: Build app
       run: ./wasm-bindgen-macroquad.sh cubic --release
