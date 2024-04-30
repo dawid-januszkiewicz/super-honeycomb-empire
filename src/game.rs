@@ -118,8 +118,8 @@ impl Game {
         &self.players[index]
     }
     pub fn init_world(&mut self, assets: &mut Assets) {
-        let shape_gen = ShapeGen::Custom(assets.shape.clone());
-        // let shape_gen = ShapeGen::Hexagonal(8);
+        // let shape_gen = ShapeGen::Custom(assets.shape.clone());
+        let shape_gen = ShapeGen::Hexagonal(8);
         let river_gen = RiverGen::Custom(assets.river.clone());
         // let river_gen = RiverGen::Random(300, 0.3);
         let localities_gen = LocalitiesGen::Random;

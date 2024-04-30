@@ -13,6 +13,7 @@ csv = "1.2.2"
 # macroquad
 macroquad = "0.3.25"
 rand = "0.8.5"
+getrandom = { version = "0.2", features = ["js"] } # wasm
 strum = { version = "0.25", features = ["derive"] }
 fraction = "0.14.0"
 shapefile = "0.6.0"

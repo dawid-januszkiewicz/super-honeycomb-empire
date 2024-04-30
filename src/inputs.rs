@@ -11,7 +11,7 @@ use crate::world::World;
 use macroquad::input::*;
 use macroquad::prelude::*;
 
-const PAN_SPEED: f32 = 5.;
+const PAN_SPEED: f32 = 8.;
 const ZOOM_SPEED: f32 = 1.;
 
 // fn swtich() -> bool {
@@ -21,6 +21,7 @@ const ZOOM_SPEED: f32 = 1.;
 // }
 
 fn poll_camera_inputs(layout: &mut Layout<f32>) {
+    // WHEEL ZOOM
     let (_, mouse_wheel_y) = mouse_wheel();
     if mouse_wheel_y > 0. {
         layout.size[0] += ZOOM_SPEED;
@@ -32,6 +33,22 @@ fn poll_camera_inputs(layout: &mut Layout<f32>) {
     if layout.size[0] <= 8. {layout.size[0] = 8.}
     if layout.size[1] <= 8. {layout.size[1] = 8.}
 
+    // MOUSE PAN
+    let (pos_x, pos_y) = mouse_position();
+    if pos_x == 0. {
+        layout.origin[0] += PAN_SPEED;
+    }
+    if pos_x == screen_width() - 1. {
+        layout.origin[0] -= PAN_SPEED;
+    }
+    if pos_y == 0. {
+        layout.origin[1] += PAN_SPEED;
+    }
+    if pos_y == screen_height() - 1. {
+        layout.origin[1] -= PAN_SPEED;
+    }
+
+    // KEY PAN
     if is_key_down(KeyCode::Right) {
         layout.origin[0] -= PAN_SPEED;
     }

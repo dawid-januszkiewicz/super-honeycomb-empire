@@ -20,7 +20,7 @@ use map_editor::*;
 use std::{fs::File, f32::consts::PI};
 // use crate::pixels::*;
 use mquad::*;
-use macroquad::prelude::*;
+use macroquad::{miniquad::fs::load_file, prelude::*};
 
 const WATER_FRAGMENT_SHADER: &'static str = include_str!("../assets/water_fragment_shader.glsl");
 const WATER_VERTEX_SHADER: &'static str = include_str!("../assets/water_vertex_shader.glsl");
@@ -76,18 +76,42 @@ fn load_rivers(shape: &Vec<(f32, f32)>) -> Vec<(usize, f32, f32)> {
 }
 
 async fn load_assets() -> Assets {
-    let f = File::open("assets/cities.json").expect("file should open read only");
-    let json: serde_json::Value = serde_json::from_reader(f).expect("file should be proper JSON");
+    // let f = File::open("assets/cities.json").expect("file should open read only");
+    let f = include_bytes!("../assets/cities.json");
+    let json: serde_json::Value = serde_json::from_reader(&f[..]).expect("file should be proper JSON");
     let locality_names: Vec<_> = json["data"].as_array().unwrap().iter().map(|el| el["asciiname"].to_string().replace("\"", "")).collect();
     // let locality_names = locality_names_v.iter().map(String::as_str).collect();
     // let locality_names: Vec<&str> = locality_names_v.iter().map(|s| &**s).collect();
 
+    let fb = include_bytes!("../assets/Iceberg-Regular.ttf");
+    let font = load_ttf_font_from_bytes(fb).unwrap();
+    // let font = load_ttf_font("assets/Iceberg-Regular.ttf").await.unwrap();
+    // let army = Texture2D::from_file_with_format(
+    //     include_bytes!("../assets/army.png"),
+    //     None,
+    // );
+    // let army: Texture2D = load_texture("assets/army.png").await.unwrap();
+    let army_f = macroquad::prelude::load_file("army.png").await.unwrap();
+    let army = Texture2D::from_file_with_format(&army_f, None);
 
-    let font = load_ttf_font("assets/Iceberg-Regular.ttf").await.unwrap();
-    let army: Texture2D = load_texture("assets/army.png").await.unwrap();
-    let port: Texture2D = load_texture("assets/port.png").await.unwrap();
-    let airport: Texture2D = load_texture("assets/airport.png").await.unwrap();
-    let fields = load_texture("assets/grass.png").await.expect("Failed to load texture");
+    // let port: Texture2D = load_texture("assets/port.png").await.unwrap();
+    let port = Texture2D::from_file_with_format(
+        include_bytes!("../assets/port.png"),
+        None,
+    );
+
+    let airport = Texture2D::from_file_with_format(
+        include_bytes!("../assets/airport.png"),
+        None,
+    );
+    // let airport: Texture2D = load_texture("assets/airport.png").await.unwrap();
+
+    let fields = Texture2D::from_file_with_format(
+        include_bytes!("../assets/grass.png"),
+        None,
+    );
+    // let fields = load_texture("assets/grass.png").await.expect("Failed to load texture");
+
     let water_material = load_material(
         WATER_VERTEX_SHADER,
         WATER_FRAGMENT_SHADER,
@@ -108,34 +132,34 @@ async fn load_assets() -> Assets {
     //let v: serde_json::Value = serde_json::from_str(data).unwrap();
     // let shape: Vec<(f32, f32)> = serde_json::from_str(data).unwrap();
     // Open the CSV file
-    std::fs::create_dir_all("assets/shapes");
-    shapefiles::extract_vertices("assets/ua_shp/ukr_admbnda_adm0_sspe_20230201.shp", "assets/shapes/ua-100k_v2.csv");
-    let file = File::open("assets/shapes/ua-100k_v2.csv").unwrap();
-    let mut rdr = csv::Reader::from_reader(file);
+    // std::fs::create_dir_all("assets/shapes");
+    // shapefiles::extract_vertices("assets/ua_shp/ukr_admbnda_adm0_sspe_20230201.shp", "assets/shapes/ua-100k_v2.csv");
+    // let file = File::open("assets/shapes/ua-100k_v2.csv").unwrap();
+    // let mut rdr = csv::Reader::from_reader(file);
 
     // Create a Vec<(f32, f32)> to store the data
     let mut shape: Vec<(f32, f32)> = Vec::new();
 
     // Iterate over each record in the CSV and parse the values
-    for (idx, result) in rdr.records().enumerate() {
-        let record = result.unwrap();
-        let first_value: f32 = record.get(0).unwrap().parse().unwrap();
-        let second_value: f32 = record.get(1).unwrap().parse().unwrap();
-        let vertex_part: i32 = record.get(2).unwrap().parse().unwrap();
-        // when using qgis-derived file
-        // let vertex_part: i32 = record.get(12).unwrap().parse().unwrap();
-        // let vertex_part_ring: i32 = record.get(13).unwrap().parse().unwrap();
+    // for (idx, result) in rdr.records().enumerate() {
+    //     let record = result.unwrap();
+    //     let first_value: f32 = record.get(0).unwrap().parse().unwrap();
+    //     let second_value: f32 = record.get(1).unwrap().parse().unwrap();
+    //     let vertex_part: i32 = record.get(2).unwrap().parse().unwrap();
+    //     // when using qgis-derived file
+    //     // let vertex_part: i32 = record.get(12).unwrap().parse().unwrap();
+    //     // let vertex_part_ring: i32 = record.get(13).unwrap().parse().unwrap();
 
-        let r = 6371000.0 / 750.; //1:250 is nearly max
-        let y = r * ((std::f32::consts::PI/4.) + (second_value.to_radians()/2.)).tan().ln();
-        let x = r * first_value.to_radians();
+    //     let r = 6371000.0 / 750.; //1:250 is nearly max
+    //     let y = r * ((std::f32::consts::PI/4.) + (second_value.to_radians()/2.)).tan().ln();
+    //     let x = r * first_value.to_radians();
         
-        if vertex_part == 158 {//&& vertex_part_ring == 0 { // include rhs when using qgis-derived file
-            // shape.push((first_value * r, second_value*(-1.) * r));
-            shape.push((x, y * -1.));
-        }
-        //  if idx > 50000 {break}
-    }
+    //     if vertex_part == 158 {//&& vertex_part_ring == 0 { // include rhs when using qgis-derived file
+    //         // shape.push((first_value * r, second_value*(-1.) * r));
+    //         shape.push((x, y * -1.));
+    //     }
+    //     //  if idx > 50000 {break}
+    // }
 
     // let river = load_rivers(&shape);
     let river = vec![];
@@ -230,6 +254,7 @@ enum State {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    set_pc_assets_folder("assets");
     let mut assets = load_assets().await;
 
     // run_editor(&assets).await;
