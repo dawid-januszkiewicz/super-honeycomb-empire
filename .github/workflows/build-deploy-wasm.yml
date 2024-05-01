@@ -15,8 +15,8 @@ jobs:
 
     - name: Configure rustup
       run: |
-        rustup install nightly
-        rustup default nightly
+        rustup install nightly-2023-06-12
+        rustup default nightly-2023-06-12
         rustup target add wasm32-unknown-unknown
       
     - name: Build app
