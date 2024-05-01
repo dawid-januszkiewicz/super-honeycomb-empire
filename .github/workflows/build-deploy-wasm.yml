@@ -28,9 +28,14 @@ jobs:
         git config --global user.email "d.januszkiewicz@gmail.com"
         git config --global user.name "Alicja Januszkiewicz"
         git checkout --orphan gh-pages
+        git add dist/
+        git stash
         git rm -rf .
         git clean -dfx
+        git stash pop
+        git reset
         mv dist/* .  # Move artifacts to root directory
+        rm dist -r
         git add .
         git commit -m "Deploy binary artifact to gh-pages"
         git push origin gh-pages --force
