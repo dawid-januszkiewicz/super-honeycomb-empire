@@ -13,11 +13,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Configure rustup
+    - name: Configure rustup and install wasm-bindgen
       run: |
         rustup install nightly-2023-06-12
         rustup default nightly-2023-06-12
         rustup target add wasm32-unknown-unknown
+        cargo install wasm-bindgen-cli
       
     - name: Build app
       run: ./wasm-bindgen-macroquad.sh cubic --release
