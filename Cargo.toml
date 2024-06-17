@@ -11,11 +11,16 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 csv = "1.2.2"
 # macroquad
-macroquad = "0.3.25"
+macroquad = "0.3.26"
 rand = "0.8.5"
+getrandom = { version = "0.2", features = ["js"] } # wasm
 strum = { version = "0.25", features = ["derive"] }
 fraction = "0.14.0"
 shapefile = "0.6.0"
+web-sys = "0.3.69"
+dbase = "0.5.0"
+geozero = "0.12.0"
+geozero-shp = "0.4.0"
 # pixels dependencies
 # pixels = "0.13.0"
 # log = "0.4.19"
@@ -23,3 +28,8 @@ shapefile = "0.6.0"
 # winit = "0.28.6"
 # error-iter = "0.4.1"
 # winit_input_helper = "0.14.1"
+ahash = "0.8.11"
+clap = {version = "4.5.7", features = ["derive"] }
+
+[patch.crates-io]
+dbase = { path = "dbase-rs" }

@@ -18,12 +18,18 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::cubic::*;
+use crate::rules::Ruleset;
 use crate::Army;
+use crate::Component;
+use crate::Controller;
+use crate::Editor;
 use crate::Player;
+use crate::VisibilityMask;
 use crate::World;
 use crate::mquad::Assets;
 use crate::world::MAX_STACK_SIZE;
 use crate::world::ACTIONS_PER_TURN;
+use crate::world::Command;
 
 use crate::world::TileCategory;
 use crate::world::gen::*;
@@ -55,7 +61,11 @@ pub struct Game {
     pub players: Vec<Player>,//[&'a Player<'a>],//Vec<&Player>,
     //pub current_player: &'a Player, // change it to a function?
     pub world: World,
-    pub victory_condition: VictoryCondition,
+    // #[serde(skip_serializing)]
+    // pub player_visibilities: HashMap<usize, crate::VisibilityMask>,
+    // pub player_observers: HashMap<usize, HashMap<Cube<i32>, Cube<i32>>>,
+    pub player_fogs: HashMap<usize, crate::Fog>,
+    pub rules: Ruleset,
 }
 
 impl From<crate::map_editor::Editor> for Game {
@@ -67,7 +77,7 @@ impl From<crate::map_editor::Editor> for Game {
         //         players.push(player);
         //     }
         // );
-        crate::Game{turn: 1, players: value.players, world: value.world, victory_condition: VictoryCondition::Elimination}
+        crate::Game{turn: 1, players: value.players, world: value.world, player_fogs: value.player_fogs, rules: value.rules}
     }
 }
 
@@ -78,6 +88,33 @@ impl From<Game> for crate::map_editor::Editor {
 }
 
 impl Game {
+    pub fn init_fogs(game: &mut Self) {
+        for (player_idx, fog_flag) in game.rules.fog_of_war.clone() {
+            if fog_flag {
+                let fog = crate::Fog::default();
+                game.player_fogs.insert(player_idx, fog);
+            }
+        }
+    }
+    pub fn new(players: Vec<Player>, assets: &mut Assets) -> Self {
+        let world: World = World::new();
+        let player_fogs = HashMap::new();
+    
+        let victory_condition = VictoryCondition::Territory(0.30);
+        let rules = Ruleset::default(victory_condition, &players);
+    
+        let mut game = Self {
+            turn: 1,
+            players,
+            world,
+            player_fogs,
+            rules,
+        };
+    
+        Game::init_world(&mut game, assets);
+        Game::init_fogs(&mut game);
+        game
+    }
     // pub async fn draw(&self, &layout: &Layout<f32>, assets: &Assets, time: f32) {
     //     crate::draw(&self, &layout, assets, time).await;
     // }
@@ -106,26 +143,33 @@ impl Game {
         serde_json::from_reader(f).expect("file should be proper JSON")
     }
 
-    pub fn current_player_index(&self) -> usize {
-        (self.turn - 1) as usize % self.players.len()
+    pub fn current_player_index(&self) -> Option<usize> {
+        match self.players.len() {
+            0 => None,
+            _ => Some((self.turn - 1) as usize % self.players.len())
+        }
     }
-    pub fn current_player_mut(&mut self) -> &mut Player {
-        let index = self.current_player_index();
-        &mut self.players[index]
+    pub fn current_player_mut(&mut self) -> Option<&mut Player> {
+        match self.current_player_index() {
+            Some(index ) => Some(&mut self.players[index]),
+            None => None,
+        }
     }
-    pub fn current_player(&self) -> &Player {
-        let index = self.current_player_index();
-        &self.players[index]
+    pub fn current_player(&self) -> Option<&Player> {
+        match self.current_player_index() {
+            Some(index ) => Some(&self.players[index]),
+            None => None,
+        }
     }
-    pub fn init_world(&mut self, assets: &mut Assets) {
+    pub fn init_world(game: &mut Self, assets: &mut Assets) {
         let shape_gen = ShapeGen::Custom(assets.shape.clone());
         // let shape_gen = ShapeGen::Hexagonal(8);
         let river_gen = RiverGen::Custom(assets.river.clone());
         // let river_gen = RiverGen::Random(300, 0.3);
         let localities_gen = LocalitiesGen::Random;
         let capitals_gen = CapitalsGen::Random;
-        self.world.generate(
-            &mut self.players,
+        game.world.generate(
+            &mut game.players,
             shape_gen,
             river_gen,
             localities_gen,
@@ -137,16 +181,26 @@ impl Game {
         // println!("river (debug): {:?}", self.world.rivers);
     }
 
+    pub fn execute_command(&mut self, command: &Command) {
+        self.world.execute_army_order(command);
+        let current_player = self.current_player_mut().unwrap();
+        current_player.actions -= 1;
+        current_player.selection = None; // deselect
+        // if let Some(mask) = self.player_visibilities.get_mut(&current_player_index) {
+        //     mask.update(&self.world, current_player_index);
+        // }
+    }
     // Clicking on a tile with an army selects it. If the player
-    // already has a selection, it will issue a command with the
+    // already has a selection, it will return a command with the
     // clicked tile as the target of the command. If no command can
     // be issued, and the clicked tile has an army, it will be
     // selected. If it does not, the player's selection will be set
     // to None. Clicking on the selected tile deselects it.
-    pub fn click(&mut self, target_cube: &Cube<i32>) {
+    // returns command to be executed
+    pub fn click(&mut self, target_cube: &Cube<i32>) -> Option<Command> {
         let target = self.world.get(target_cube).unwrap();
-        let current_player_index = self.current_player_index();
-        let current_player = self.current_player();
+        let current_player_index = self.current_player_index().unwrap();
+        let current_player = self.current_player().unwrap();
         println!("current_selection: {:?}", current_player.selection);
         println!("click: {:?}", target_cube);
         // let is_target_selectable = if let Some(army) = &target.army {
@@ -166,24 +220,23 @@ impl Game {
         if let Some(selection) = current_player.selection {
             let legal_moves = self.world.get_all_legal_moves(&selection, &current_player_index); // self.world.get_reachable_cubes(&selection);
             if legal_moves.contains(target_cube) { // && self.world.is_cube_targetable(&selection, target_cube) { // !matches!(target.category, TileCategory::Water) {
-                self.world.execute_army_order(&selection, &target_cube);
-                let current_player = self.current_player_mut();
-                current_player.actions -= 1;
-                current_player.selection = None; // deselect
-                return;
+                let command = Command{from: selection, to: *target_cube, via: Vec::new()};
+                return Some(command);
             }
         }
-        let current_player = self.current_player_mut();
+        let current_player = self.current_player_mut().unwrap();
         if is_target_selectable {
             current_player.selection = Some(*target_cube);
         } else {
             current_player.selection = None;
         }
+        None
     }
-    fn next_turn(&mut self) {
-        let current_player_index = self.current_player_index();
-        self.current_player_mut().selection = None;
-        self.current_player_mut().actions = ACTIONS_PER_TURN;
+    pub fn next_turn(&mut self) {
+        let current_player_index = self.current_player_index().unwrap();
+        let current_player = self.current_player_mut().unwrap();
+        current_player.selection = None;
+        current_player.actions = ACTIONS_PER_TURN;
         self.world.train_armies(&current_player_index);
 
         // Reset army movement points
@@ -195,47 +248,63 @@ impl Game {
         }
 
         self.turn += 1;
-        println!("Turn {}: {}", self.turn, self.current_player());
+        println!("Turn {}: {}", self.turn, self.current_player().unwrap());
     }
     pub fn _update(&mut self) {
-        let current_player_index = self.current_player_index();
-        if self.players.len() <= 1 {
-            println!("{} wins!", self.current_player());
-        }
+        let Some(current_player_index) = self.current_player_index() else {return};
+        let current_player = self.current_player().unwrap();
+
+        // if self.players.len() <= 1 {
+        //     println!("{} wins!", current_player);
+        // }
 
         // Force a player to skip a turn if he has no units to move or no action points left.
         let can_player_issue_a_command = self.world.can_player_issue_a_command(&current_player_index);
-        if self.current_player().actions == 0 || !can_player_issue_a_command {
+        if current_player.actions == 0 || !can_player_issue_a_command {
             self.next_turn();
             return
         }
 
         // Let AI make a move
-        if let Some(ai) = &self.current_player().ai {
-            let targets = ai.generate_targets(&current_player_index, &self.world);
-            for target in targets {
-                if self.current_player().actions > 0 {
-                    self.click(&target.origin);
-                    self.click(&target.target);
-                } else {
-                    break
+        match &current_player.controller {
+            Controller::Human => {},
+            Controller::AI(ai) => {
+                let targets = ai.generate_targets(&current_player_index, &self.world);
+                for target in targets {
+                    if self.current_player().unwrap().actions > 0 {
+                        match self.click(&target.origin) {
+                            Some(command) => self.execute_command(&command),
+                            None => {},
+                        };
+                        match self.click(&target.target) {
+                            Some(command) => self.execute_command(&command),
+                            None => {},
+                        };
+                    } else {
+                        break
+                    }
                 }
-            }
-            self.current_player_mut().skip_turn();
+                self.current_player_mut().unwrap().skip_turn();
+            },
+            Controller::Remote => {},
         }
     }
 }
 
 impl crate::Component for Game {
+    // type Swap = Editor;
     fn draw(&self, &layout: &Layout<f32>, assets: &Assets, time: f32) {
         crate::draw(&self, &layout, assets, time);
     }
     fn poll(&mut self, layout: &mut Layout<f32>) -> bool {
         crate::poll_inputs(self, layout)
     }
-    // fn swap(self) -> crate::map_editor::Editor {
-    //     self.into()
+    // fn swap(self) -> Self::Swap{//impl Component {
+    //     crate::Editor::from(self)
     // }
+    fn swap(self) -> impl Component {
+        crate::Editor::from(self)
+    }
     fn update(&mut self) {
         self._update()
     }

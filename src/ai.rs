@@ -65,19 +65,25 @@ impl AI {
             TileCategory::Water => self.scores.water,
         }
     }
-    fn match_locality_category_score(&self, category: &LocalityCategory) -> i32 {
+    fn match_locality_category_score(&self, category: &LocalityCategory, owner_idx: Option<usize>) -> i32 {
         match category {
             LocalityCategory::City => self.scores.city,
             LocalityCategory::PortCity => self.scores.port_city,
             LocalityCategory::Airport => self.scores.airport,
-            LocalityCategory::Capital => self.scores.capital,
-            LocalityCategory::SatelliteCapital => self.scores.satellite_capital,
+            LocalityCategory::Capital(i) => {
+                if *i == owner_idx.unwrap() {
+                    self.scores.capital
+                } else {
+                    self.scores.satellite_capital
+                }
+            },
+            // LocalityCategory::SatelliteCapital => self.scores.satellite_capital,
         }
     }
     /// Calculates the base score for capturing a tile.
     fn match_tile_score(&self, tile: &Tile) -> i32 {
         match &tile.locality {
-            Some(locality) => self.match_locality_category_score(&locality.category),
+            Some(locality) => self.match_locality_category_score(&locality.category, tile.owner_index),
             None => self.match_tile_category_score(&tile.category),
         }
     }

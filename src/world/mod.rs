@@ -42,28 +42,41 @@ const BONUS_GROWTH_PER_TILE: i32 = 1;
 const BASE_GROWTH_SATELLITE_CAPITAL: i32 = 7;
 const MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ORIGIN: i32 = 40;
 const MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL: i32 = 25;
+// const UNIT_VIEW_DISTANCE: usize = 2; // for now the view distance will be the same as travel distance
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Command {
+    pub from: Cube<i32>,
+    pub to: Cube<i32>,
+    pub via: Vec<Cube<i32>>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum Controller {
+    Human,
+    AI(AI),
+    Remote,
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct Player {
     pub name: String,
     pub actions: i32,
-    pub ai: Option<AI>,
+    pub controller: Controller,
     pub selection: Option<Cube<i32>>,
 
     // self.camera = None
-    pub capital_pos: Option<Cube<i32>>,
     // self.color = color
     // self.is_defeated = False
 }
 
 impl Player {
-    pub fn new(name: &str, ai: Option<AI>) -> Self {
+    pub fn new(name: &str, controller: Controller) -> Self {
         Player {
             name: name.to_string(),
             actions: ACTIONS_PER_TURN,
-            ai,
+            controller,
             selection: None,
-            capital_pos: None,
         }
     }
     pub fn skip_turn(&mut self) {
@@ -88,8 +101,8 @@ impl Display for Player {
 pub enum LocalityCategory {
     City,
     PortCity,
-    Capital,
-    SatelliteCapital,
+    Capital(usize), // contains idx of original owner
+    // SatelliteCapital,
     Airport,
 }
 
@@ -110,8 +123,8 @@ impl Display for LocalityCategory {
         match *self {
             LocalityCategory::City => write!(f, "City"),
             LocalityCategory::PortCity => write!(f, "Port City"),
-            LocalityCategory::Capital => write!(f, "Capital"),
-            LocalityCategory::SatelliteCapital => write!(f, "Satellite Capital"),
+            LocalityCategory::Capital(i) => write!(f, "P{} Capital", i),
+            //LocalityCategory::SatelliteCapital => write!(f, "Satellite Capital"),
             LocalityCategory::Airport => write!(f, "Airport"),
         }
         // write!(f, "({})", self)
@@ -380,7 +393,7 @@ impl World {
             rivers: HashSet::new(),
         }
     }
-    pub fn insert(&mut self, key: Cube<i32>, value: Tile) {
+    fn handle_internal(&mut self, key: Cube<i32>, value: &Tile) {
         // let Some((key, value)) = self.world.get_key_value(&key);
         if let Some(index) = value.owner_index {
             let set = self.cubes_by_ownership.entry(index).or_insert(HashSet::new());
@@ -391,8 +404,24 @@ impl World {
                 self.cubes_with_airport.insert(key);
             }
         }
+    }
+    pub fn insert(&mut self, key: Cube<i32>, value: Tile) {
+        self.handle_internal(key, &value);
         self.world.insert(key, value);
     }
+    pub fn extend<T>(&mut self, mut iter: T)
+    where
+        T: Iterator<Item = (Cube<i32>, Tile)>,
+    {
+        iter.by_ref().for_each(|(k, v)| {
+            self.handle_internal(k, &v);
+        });
+        self.world.extend(iter);
+    }
+    // pub fn extend(&mut self, iter: HashMap<Cube<i32>, Tile>,) {
+    //     iter.iter().for_each(|(cube, tile)| {self.handle_internal(*cube, tile)});
+    //     self.world.extend(iter)
+    // }
     pub fn remove(&mut self, k: &Cube<i32>) -> Option<Tile> {
         let value = self.world.remove(k);
         if let Some(value) = &value {
@@ -407,6 +436,14 @@ impl World {
             }
         }
         value
+    }
+    pub fn get_cubes_with_cities(&self) -> HashSet<Cube<i32>> {
+        let cubes_with_cities: HashSet<Cube<i32>> = self.iter().filter(|(c, t)| {
+            t.locality.as_ref().is_some_and(|l| {
+                matches!(l.category, LocalityCategory::City)
+            })
+        }).map(|(c, t)| *c).collect();
+        cubes_with_cities
     }
     pub fn set_tile_owner(&mut self, cube: &Cube<i32>, new_index: usize) {
         let mut tile = self.remove(cube).unwrap();
@@ -425,7 +462,10 @@ impl World {
     /// capture_tile() - the target tile has no army.
     /// regroup() - the target tile has an allied army.
     /// attack() - the target tile has a hostile army.
-    pub fn execute_army_order(&mut self, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
+    // pub fn execute_army_order(&mut self, origin_cube: &Cube<i32>, target_cube: &Cube<i32>) {
+     pub fn execute_army_order(&mut self, command: &Command) {
+        let origin_cube = &command.from;
+        let target_cube = &command.to;
         let target = self.get(target_cube).unwrap();
         let origin_owner = self.get(origin_cube).unwrap().army.as_ref().unwrap().owner_index;
         let target_owner = self.get(target_cube).unwrap().owner_index;
@@ -637,8 +677,14 @@ impl World {
                     LocalityCategory::City => BASE_GROWTH_CITY,
                     LocalityCategory::PortCity => continue,
                     LocalityCategory::Airport => continue,
-                    LocalityCategory::Capital => BASE_GROWTH_CAPITAL,
-                    LocalityCategory::SatelliteCapital => BASE_GROWTH_SATELLITE_CAPITAL,
+                    LocalityCategory::Capital(i) => {
+                        if *i == player_index {
+                            BASE_GROWTH_CAPITAL
+                        } else {
+                            BASE_GROWTH_SATELLITE_CAPITAL
+                        }
+                    },
+                    //LocalityCategory::SatelliteCapital => BASE_GROWTH_SATELLITE_CAPITAL,
                 }
                 _ => {continue},
             };
@@ -863,7 +909,8 @@ fn capture_tile(world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i
 
     let mut origin = world.remove(origin_cube).unwrap();
 
-    let origin_owner = format!("Player {}", origin.army.as_ref().unwrap().owner_index.unwrap());
+    let origin_owner_idx = origin.army.as_ref().unwrap().owner_index.unwrap();
+    let origin_owner = format!("Player {}", origin_owner_idx);
     let from_clause = match target.owner_index {
         Some(index) => format!(" from Player {}", index),
         None => "".to_string(),
@@ -879,14 +926,19 @@ fn capture_tile(world: &mut World, origin_cube: &Cube<i32>, target_cube: &Cube<i
     // let target = world.get_mut(target_cube).unwrap();
     match &target.locality {
         Some(locality) => match &locality.category {
-            LocalityCategory::Capital => {
-                capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ORIGIN;
-                origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ALL;
+            LocalityCategory::Capital(i) => {
+                if *i == origin_owner_idx {
+                    capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ORIGIN;
+                    origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SOVEREIGN_CAPITAL_ALL;
+                } else {
+                    capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ORIGIN;
+                    origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL;
+                }
             }
-            LocalityCategory::SatelliteCapital => {
-                capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ORIGIN;
-                origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL;
-            }
+            // LocalityCategory::SatelliteCapital => {
+            //     capturing_army_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ORIGIN;
+            //     origin_owner_morale_bonus = MORALE_BONUS_ANNEX_SATELLITE_CAPITAL_ALL;
+            // }
             LocalityCategory::City | LocalityCategory::PortCity | LocalityCategory::Airport => {
                 capturing_army_morale_bonus = MORALE_BONUS_ANNEX_CITY_ORIGIN;
                 origin_owner_morale_bonus = MORALE_BONUS_ANNEX_CITY_ALL;

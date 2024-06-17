@@ -1,9 +1,11 @@
+use std::collections::HashSet;
 use std::f32::consts::PI;
 
 use macroquad::prelude::*;
 use macroquad::texture::load_image;
 
 use crate::cubic;
+use crate::Visibility;
 use crate::World;
 use crate::cubic::Cube;
 use crate::cubic::DIRECTIONS;
@@ -17,6 +19,30 @@ use crate::map_editor::Editor;
 use crate::world::LocalityCategory;
 use crate::world::Tile;
 use crate::world::TileCategory;
+
+fn clone_subset_with_keys<K, V>(original: &std::collections::HashMap<K, V>, key_subset: &std::collections::HashSet<K>) -> std::collections::HashMap<K, V>
+where
+    K: Eq + std::hash::Hash + Clone,
+    V: Clone,
+{
+    key_subset
+        .iter()
+        .filter_map(|k| original.get(k).map(|v| (k.clone(), v.clone())))
+        .collect()
+}
+
+fn get_subset_with_references<'a, K, V>(
+    original: &'a std::collections::HashMap<K, V>,
+    key_subset: &HashSet<&K>,
+) -> std::collections::HashMap<&'a K, &'a V>
+where
+    K: Eq + std::hash::Hash,
+{
+    key_subset
+        .iter()
+        .filter_map(|&k| original.get_key_value(k))
+        .collect()
+}
 
 fn owner_to_color(&owner: &Option<usize>) -> macroquad::color::Color {
     match owner {
@@ -45,6 +71,102 @@ pub struct Assets {
     pub init_layout: Layout<f32>,
     pub shape: Vec<(f32, f32)>,
     pub river: Vec<(usize, f32, f32)>,
+}
+
+pub fn draw_base_tiles(world: &std::collections::HashMap<&Cube<i32>, &Tile>, layout: &Layout<f32>, assets: &Assets, time: f32) {
+    // let lens_center = get_frame_time();
+    assets.water_material.set_uniform("Time", time);
+    let size = layout.size[0] as f32;
+    for (cube, tile) in world.iter() {
+        let pixel = Cube::<f32>::from(**cube).to_pixel(&layout);
+        // let color = match tile.category {
+        //     TileCategory::Farmland => LIGHTGRAY,
+        //     TileCategory::Water => SKYBLUE,
+        // };
+        let x = pixel.0;
+        let y = pixel.1;
+        let vertical = match layout.orientation {
+            OrientationKind::Pointy(_) => true,
+            OrientationKind::Flat(_) => false,
+        };
+        match tile.category {
+            TileCategory::Farmland => {
+                // set_texture("texture", &assets.fields);
+                // gl_use_material(assets.water_material);
+                draw_hexagon(x, y, size, layout.size[0]/20., vertical, BLACK, LIGHTGRAY);
+                // gl_use_default_material();
+            },
+            TileCategory::Water => {
+                gl_use_material(assets.water_material);
+                draw_hexagon(x, y, size, 0., vertical, BLACK, SKYBLUE);
+                gl_use_default_material();
+            }
+        }
+    }
+}
+
+pub fn draw_game_tiles(world: &std::collections::HashMap<&Cube<i32>, &Tile>, layout: &Layout<f32>, assets: &Assets) {
+    let size = layout.size[0] as f32;
+    let mut army_params = DrawTextureParams::default();
+    army_params.dest_size = Some(Vec2{x: layout.size[0] as f32*1.5, y: layout.size[1] as f32*1.5});
+    let mut airport_params = DrawTextureParams::default();
+    airport_params.dest_size = Some(Vec2{x: layout.size[0] as f32, y: layout.size[1] as f32});
+    let mut port_params = DrawTextureParams::default();
+    port_params.dest_size = Some(Vec2{x: layout.size[0] as f32 * 0.9, y: layout.size[1] as f32 * 0.9});
+
+    let airport_offset = layout.size[0] * 0.5;
+    let port_offset = layout.size[0] * 0.5 * 0.9;
+    let x_army_offset = layout.size[0] as f32 * 0.7;
+    let y_army_offset = layout.size[1] as f32 * 0.7;
+    for (cube, tile) in world.iter() {
+        let pixel = Cube::<f32>::from(**cube).to_pixel(&layout);
+        let x = pixel.0;
+        let y = pixel.1;
+        if tile.owner_index.is_some() {
+            let color = owner_to_color(&tile.owner_index);
+            let vertical = match layout.orientation {
+                OrientationKind::Pointy(_) => true,
+                OrientationKind::Flat(_) => false,
+            };
+            draw_hexagon(x, y, size, 0., vertical, BLACK, color);
+            // match tile.category {
+            //     TileCategory::Farmland => draw_hexagon(x, y, size, layout.size[0]/10., true, BLACK, color),
+            //     TileCategory::Water => draw_hexagon(x, y, size, layout.size[0]/10., true, BLACK, SKYBLUE)
+            // }
+        }
+
+        if tile.locality.is_some() {
+            match tile.locality.as_ref().unwrap().category {
+                LocalityCategory::Capital(i) => {
+                    if i == tile.owner_index.unwrap() {
+                        draw_circle(x, y, size/2., RED)
+                    } else {
+                        draw_circle(x, y, size/2., PINK)
+                    }
+                }
+                // LocalityCategory::Capital => draw_circle(x, y, size/2., RED),
+                // LocalityCategory::SatelliteCapital => draw_circle(x, y, size/2., PINK),
+                LocalityCategory::City => draw_circle(x, y, size/2., DARKBROWN),
+                LocalityCategory::PortCity => {
+                    draw_circle(x, y, size/2., BLUE);
+                    draw_texture_ex(assets.port, x - port_offset, y - port_offset, WHITE, port_params.clone());
+                },
+                LocalityCategory::Airport => {
+                    draw_rectangle(x - size/2., y - size/2., size, size, DARKGREEN);
+                    draw_texture_ex(assets.airport, x - airport_offset, y - airport_offset, WHITE, airport_params.clone());
+                }
+            }
+        }
+        if tile.army.is_some() {
+            let color = owner_to_color(&tile.army.as_ref().unwrap().owner_index);
+            // draw_texture(assets.army, x - x_army_offset, y - y_army_offset, color);
+            draw_texture_ex(assets.army, x - x_army_offset, y - y_army_offset, color, army_params.clone());
+        }
+        // if let Some(tile.locality) = locality {
+        //     draw_circle(x, y, size, DARKBROWN)
+        // }
+        
+    }
 }
 
 impl World {
@@ -111,8 +233,14 @@ impl World {
 
             if tile.locality.is_some() {
                 match tile.locality.as_ref().unwrap().category {
-                    LocalityCategory::Capital => draw_circle(x, y, size/2., RED),
-                    LocalityCategory::SatelliteCapital => draw_circle(x, y, size/2., PINK),
+                    LocalityCategory::Capital(i) => {
+                        if i == tile.owner_index.unwrap() {
+                            draw_circle(x, y, size/2., RED)
+                        } else {
+                            draw_circle(x, y, size/2., PINK)
+                        }
+                    }
+                    //LocalityCategory::SatelliteCapital => draw_circle(x, y, size/2., PINK),
                     LocalityCategory::City => draw_circle(x, y, size/2., DARKBROWN),
                     LocalityCategory::PortCity => {
                         draw_circle(x, y, size/2., BLUE);
@@ -163,12 +291,51 @@ fn draw_map_control_summary(game: &Game) {
 
 pub fn draw(game: &Game, &layout: &Layout<f32>, assets: &Assets, time: f32) {
     macroquad::prelude::clear_background(macroquad::prelude::DARKGRAY);
-    let has_selection = game.current_player().selection.is_some();
+    // let mut player_index = game.current_player_index();
+    // // do not reveal ai player pov
+    // if game.current_player().ai.is_some() {
+    //     player_index = 0;
+    // }
+    // // let world_keys = game.world.keys().cloned().collect();
+    // let world_keys: HashSet<_> = game.world.keys().collect();
+    // let world = match game.player_visibilities.get(&player_index) {
+    //     Some(mask) => {
+    //         // let set: std::collections::HashSet<Cube<i32>> = mask.keys().cloned().collect();
+    //         let set: HashSet<_> = mask.iter().filter_map(|(k, v)| match v {
+    //             Visibility::Clear => Some(k),
+    //             Visibility::Shroud => Some(k),
+    //             Visibility::Fog => None,
+    //         }).collect();
+    //         let key_subset: HashSet<_> = set.intersection(&world_keys).copied().collect();
+    //         get_subset_with_references(&game.world, &key_subset)
+    //     },
+    //     None => get_subset_with_references(&game.world, &world_keys)
+    // };
+
+    // draw_base_tiles(&world, &layout, assets, time);
+
+    // let world = match game.player_visibilities.get(&player_index) {
+    //     Some(mask) => {
+    //         // let set: std::collections::HashSet<Cube<i32>> = mask.keys().cloned().collect();
+    //         let set: HashSet<_> = mask.iter().filter_map(|(k, v)| match v {
+    //             Visibility::Clear => Some(k),
+    //             Visibility::Shroud => None,
+    //             Visibility::Fog => None,
+    //         }).collect();
+    //         let key_subset: HashSet<_> = set.intersection(&world_keys).copied().collect();
+    //         get_subset_with_references(&game.world, &key_subset)
+    //     },
+    //     None => get_subset_with_references(&game.world, &world_keys)
+    // };
+
+    // draw_game_tiles(&world, &layout, assets);
+
     game.world.draw_base_tiles(&layout, &assets, time);
     game.world.draw_game_tiles(&layout, &assets);
 
     draw_tile_selector(&layout);
 
+    let has_selection = game.current_player().is_some_and(|p| p.selection.is_some());
     if has_selection {
         draw_army_legal_moves(&game, &layout);
     } else {
@@ -251,7 +418,7 @@ pub fn draw_editor(editor: &Editor, layout: &Layout<f32>, assets: &Assets, time:
 // }
 
 fn draw_army_can_move_indicator(game: &Game, &layout: &Layout<f32>) {
-    let current_player_index = game.current_player_index();
+    let Some(current_player_index) = game.current_player_index() else {return};
     let size = layout.size[0];
     game.world.iter().for_each(|(cube, tile)|
         if tile.army.as_ref().is_some_and(|x| x.can_move & x.owner_index.is_some_and(|x| x == current_player_index)) 
@@ -269,15 +436,16 @@ fn draw_army_can_move_indicator(game: &Game, &layout: &Layout<f32>) {
 
 fn draw_army_legal_moves(game: &Game, &layout: &Layout<f32>) {
     // let selection = game.current_player().selection;
+    let Some(player) = game.current_player() else {return};
     let size = layout.size[0];
-    if let Some(selection) = game.current_player().selection {
+    if let Some(selection) = player.selection {
         let color = Color::from_rgba(255, 255, 0, 136);//0x8800ffff
         let vertical = match layout.orientation {
             OrientationKind::Pointy(_) => true,
             OrientationKind::Flat(_) => false,
         };
 
-        game.world.get_all_legal_moves(&selection, &game.current_player_index()).iter().for_each(|cube| {
+        game.world.get_all_legal_moves(&selection, &game.current_player_index().unwrap()).iter().for_each(|cube| {
             let p = Cube::<f32>::from(*cube).to_pixel(&layout);
             draw_hexagon(p.0, p.1, size, size/10., vertical, BLACK, color);
         });

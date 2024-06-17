@@ -1,4 +1,4 @@
-use crate::{mquad::*, inputs::{draw_tile_selector, poll_inputs, poll_map_editor_inputs}, cubic::{Layout, self}, world::{TileCategory, Locality, Player}};
+use crate::{cubic::{self, Layout}, inputs::{draw_tile_selector, poll_inputs, poll_map_editor_inputs}, mquad::*, rules::Ruleset, world::{Locality, Player, TileCategory}, Component, Fog, VisibilityMask};
 
 use std::{collections::{HashMap, HashSet}, fs::{OpenOptions, File}};
 use std::slice::Iter;
@@ -14,6 +14,8 @@ use crate::{cubic::Cube, world::{Tile, World, LocalityCategory}};
 pub struct Editor {
     pub world: World,
     pub players: Vec<Player>,
+    pub player_fogs: HashMap<usize, crate::Fog>,
+    pub rules: Ruleset,
     pub brush: Brush,
 }
 
@@ -82,9 +84,9 @@ impl PlaceItem for LocalityCategory {
                 _ => return,
             }
             // tile.locality = Some(self.clone().into());
-            if matches!(self, LocalityCategory::Capital) {
+            if matches!(self, LocalityCategory::Capital(_)) {
                 let player_count = editor.players.iter().len();
-                editor.players.push(Player{name: "".to_string(), actions: 5, ai: None, selection: None, capital_pos: Some(*cube)});
+                editor.players.push(Player{name: "".to_string(), actions: 5, controller: crate::Controller::Human, selection: None});
                 tile.owner_index = Some(player_count);
             }
         }
@@ -113,7 +115,8 @@ impl RemoveItem for TileCategory {
 
 impl Editor {
     pub fn new(world: World, players: Vec<Player>) -> Self {
-        Editor{world, brush: Brush::default(), players}
+        let rules = Ruleset::default(crate::VictoryCondition::Elimination, &players);
+        Editor{world, brush: Brush::default(), players, player_fogs: HashMap::new(), rules}
     }
     pub fn to_json(&self, path: &str) {
         let file = File::create(&path).expect("Failed to open the file.");
@@ -195,15 +198,19 @@ impl Editor {
 // }
 
 impl crate::Component for Editor {
+    // type Swap = crate::Game;
     fn draw(&self, &layout: &Layout<f32>, assets: &Assets, time: f32) {
         crate::draw_editor(&self, &layout, assets, time);
     }
     fn poll(&mut self, layout: &mut Layout<f32>) -> bool {
         crate::poll_map_editor_inputs(self, layout)
     }
-    // fn swap(self) -> crate::Game {
-    //     self.into()
+    // fn swap(self) -> Self::Swap{//impl Component {
+    //     crate::Game::from(self)
     // }
+    fn swap(self) -> impl Component {
+        crate::Game::from(self)
+    }
     fn update(&mut self) {
         {}
     }

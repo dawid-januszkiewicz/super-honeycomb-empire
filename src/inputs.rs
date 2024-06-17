@@ -1,6 +1,7 @@
 use crate::cubic::Cube;
 use crate::cubic::OrientationKind;
 use crate::game::Game;
+use crate::Controller;
 use crate::Layout;
 use crate::cubic;
 use crate::map_editor::Editor;
@@ -11,7 +12,7 @@ use crate::world::World;
 use macroquad::input::*;
 use macroquad::prelude::*;
 
-const PAN_SPEED: f32 = 5.;
+const PAN_SPEED: f32 = 8.;
 const ZOOM_SPEED: f32 = 1.;
 
 // fn swtich() -> bool {
@@ -21,6 +22,7 @@ const ZOOM_SPEED: f32 = 1.;
 // }
 
 fn poll_camera_inputs(layout: &mut Layout<f32>) {
+    // WHEEL ZOOM
     let (_, mouse_wheel_y) = mouse_wheel();
     if mouse_wheel_y > 0. {
         layout.size[0] += ZOOM_SPEED;
@@ -32,6 +34,22 @@ fn poll_camera_inputs(layout: &mut Layout<f32>) {
     if layout.size[0] <= 8. {layout.size[0] = 8.}
     if layout.size[1] <= 8. {layout.size[1] = 8.}
 
+    // MOUSE PAN
+    let (pos_x, pos_y) = mouse_position();
+    if pos_x == 0. {
+        layout.origin[0] += PAN_SPEED;
+    }
+    if pos_x == screen_width() - 1. {
+        layout.origin[0] -= PAN_SPEED;
+    }
+    if pos_y == 0. {
+        layout.origin[1] += PAN_SPEED;
+    }
+    if pos_y == screen_height() - 1. {
+        layout.origin[1] -= PAN_SPEED;
+    }
+
+    // KEY PAN
     if is_key_down(KeyCode::Right) {
         layout.origin[0] -= PAN_SPEED;
     }
@@ -93,21 +111,28 @@ pub fn poll_inputs(game: &mut Game, layout: &mut Layout<f32>) -> bool {
     //     let key = last_key_pressed();
     // }
 
-    let player_index = game.current_player_index();
-    let player = &game.players[player_index];
+    match game.current_player_index() {
+        Some(player_index) => {
+            let player = &game.players[player_index];
 
-    if is_mouse_button_pressed(MouseButton::Left) & player.ai.is_none() {
-        let pos = mouse_position().into();
-        // let xyz = Cube::from::<i32>(Cube::new(1.,1.));
-        let cube = cubic::pixel_to_cube(layout, pos).round::<i32>();
-        if let Some(_) = game.world.get(&cube) {
-            game.click(&cube);
-        }
-    }
-
-    let player = &mut game.players[player_index];
-    if is_key_pressed(KeyCode::Space) & player.ai.is_none() {
-        player.skip_turn();
+            if is_mouse_button_pressed(MouseButton::Left) & matches!(player.controller, Controller::Human) {
+                let pos = mouse_position().into();
+                // let xyz = Cube::from::<i32>(Cube::new(1.,1.));
+                let cube = cubic::pixel_to_cube(layout, pos).round::<i32>();
+                if let Some(_) = game.world.get(&cube) {
+                    match game.click(&cube) {
+                        Some(command) => {game.execute_command(&command);},
+                        None => {}
+                    };
+                }
+            }
+        
+            let player = &mut game.players[player_index];
+            if is_key_pressed(KeyCode::Space) & matches!(player.controller, Controller::Human) {
+                player.skip_turn();
+            }
+        },
+        None => {},
     }
 
     poll_camera_inputs(layout);
@@ -121,6 +146,60 @@ pub fn poll_inputs(game: &mut Game, layout: &mut Layout<f32>) -> bool {
         std::fs::create_dir_all("assets/saves");
         *game = Game::from_json("assets/saves/quicksave.json");
     }
+
+    let mut exit = false;
+    if is_key_pressed(KeyCode::Escape) {
+        exit = true
+    }
+    exit
+}
+
+pub fn poll_inputs_client(client: &mut crate::Client<Game>, layout: &mut Layout<f32>) -> bool {
+    // if is_key_down() {
+    //     let key = last_key_pressed();
+    // }
+    let mut game = &mut client.app;
+
+    let player_index = game.current_player_index().unwrap(); // todo: unwrap safe here? will client never have empty players vec?
+    let player = &game.players[player_index];
+
+    if is_mouse_button_pressed(MouseButton::Left) & matches!(player.controller, Controller::Human) {
+        let pos = mouse_position().into();
+        // let xyz = Cube::from::<i32>(Cube::new(1.,1.));
+        let cube = cubic::pixel_to_cube(layout, pos).round::<i32>();
+        if let Some(_) = game.world.get(&cube) {
+            match game.click(&cube) {
+                Some(command) => {
+                    match client.send_command(command) {
+                        Ok(command) => {
+                            client.app.execute_command(&command);
+                        },
+                        Err(_) => println!("command rejected by server")
+                    }
+                    
+                },
+                None => {}
+            };
+        }
+    }
+    let game = &mut client.app;
+
+    let player = &mut game.players[player_index];
+    if is_key_pressed(KeyCode::Space) & matches!(player.controller, Controller::Human) {
+        player.skip_turn();
+    }
+
+    poll_camera_inputs(layout);
+
+    if is_key_down(KeyCode::F5) {
+        //save_map(&game.world.world, "assets/saves/quicksave.json");
+        std::fs::create_dir_all("assets/saves");
+        game.to_json("assets/saves/quicksave.json");
+    }
+    // if is_key_down(KeyCode::F9) {
+    //     std::fs::create_dir_all("assets/saves");
+    //     *game = Game::from_json("assets/saves/quicksave.json");
+    // }
 
     let mut exit = false;
     if is_key_pressed(KeyCode::Escape) {
@@ -155,7 +234,7 @@ fn draw_locality_name(layout: &Layout<f32>, cube: &Cube<i32>, tile: &Tile, font:
     if let Some(locality) = &tile.locality {
         // if let Some(category) = locality.category {}
         let color = match locality.category {
-            LocalityCategory::Capital => WHITE, // tile.locality.starting_owner.color,
+            LocalityCategory::Capital(_) => WHITE, // tile.locality.starting_owner.color,
             _ => WHITE,
         };
 

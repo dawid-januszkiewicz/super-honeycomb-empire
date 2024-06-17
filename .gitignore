@@ -5,3 +5,6 @@ assets/saves/*
 assets/scenarios/*
 pixels.rs
 flamegraph*.svg
+perf.data
+test.sh
+dist/

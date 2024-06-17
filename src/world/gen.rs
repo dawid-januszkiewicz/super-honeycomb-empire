@@ -32,6 +32,7 @@ extern crate rand;
 use macroquad::shapes::draw_hexagon;
 use macroquad::shapes::draw_line;
 use macroquad::shapes::draw_poly_lines;
+use rand::seq::IteratorRandom;
 use rand::Rng;
 use rand::random;
 use rand::seq::index::sample;
@@ -368,8 +369,7 @@ impl World {
             let mut tile = self.get_mut(&pos).unwrap();
             tile.category = TileCategory::Farmland;
             tile.owner_index = Some(index);
-            tile.locality = Some(Locality::new(locality_name, LocalityCategory::Capital));
-            player.capital_pos = Some(*pos);
+            tile.locality = Some(Locality::new(locality_name, LocalityCategory::Capital(index)));
 
             let set = self.cubes_by_ownership.entry(index).or_insert(HashSet::new());
             set.insert(*pos);
@@ -406,23 +406,24 @@ impl World {
     // }
     /// pick a random city for each player and turn it into their capital
     fn gen_random_capitals(&mut self, locality_names: &mut Vec<&str>, mut players: &mut Vec<Player>) {
-        let cubes_with_cities: HashSet<Cube<i32>> = self.iter().filter(|(c, t)| {
-            t.locality.as_ref().is_some_and(|l| {
-                matches!(l.category, LocalityCategory::City)
-            })
-        }).map(|(c, t)| *c).collect();
-
-        let start_pos = sample(&mut rand::thread_rng(), cubes_with_cities.len(), players.len());
-        players.iter_mut().enumerate().for_each(|(player_index, player)| {
-            let index = start_pos.index(player_index);
-            let cube = cubes_with_cities.iter().skip(index).next().unwrap().clone();
-            let tile = self.get_mut(&cube).unwrap();
-            tile.owner_index = Some(player_index);
-            tile.locality.as_mut().unwrap().category = LocalityCategory::Capital;
-            player.capital_pos = Some(cube);
-            let set = self.cubes_by_ownership.entry(player_index).or_insert(HashSet::new());
-            set.insert(cube);
-        });
+        let cubes_with_cities = self.get_cubes_with_cities();
+        for player in 0..players.len() {
+            self.gen_random_capital(player, &cubes_with_cities);
+        }
+    }
+    /// pick a random city for a player and turn it into their capital
+    pub fn gen_random_capital(&mut self, player_idx: usize, cubes_with_cities: &HashSet<Cube<i32>>) -> Cube<i32> {
+        let mut rng = rand::thread_rng();
+        let cube = cubes_with_cities.iter().choose(&mut rng).unwrap().clone();
+        self.gen_capital_at_cube(player_idx, cube)
+    }
+    pub fn gen_capital_at_cube(&mut self, player_idx: usize, cube: Cube<i32>) -> Cube<i32> {
+        let tile = self.get_mut(&cube).unwrap();
+        tile.owner_index = Some(player_idx);
+        tile.locality.as_mut().unwrap().category = LocalityCategory::Capital(player_idx);
+        let set = self.cubes_by_ownership.entry(player_idx).or_insert(HashSet::new());
+        set.insert(cube);
+        cube
     }
     fn gen_maxdist_capitals(&mut self, locality_names: &mut Vec<&str>, mut players: &mut Vec<Player>) {
         unimplemented!()
