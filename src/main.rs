@@ -326,8 +326,8 @@ async fn main() {
     let mut time = 0.0;
     let mut exit = false;
     while !exit {
-        endpoint.draw(&mut layout, &mut assets, time);
         exit = endpoint.poll(&mut layout);
+        endpoint.draw(&mut layout, &mut assets, time);
         next_frame().await;
         endpoint = endpoint.update();
         // if is_key_pressed(KeyCode::F1) {

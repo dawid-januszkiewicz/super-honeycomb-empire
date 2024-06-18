@@ -28,7 +28,8 @@ impl Ruleset {
         let n = players.len();
         let mut fog_of_war = HashMap::new();
         (0..n).into_iter().for_each(|i| {fog_of_war.insert(i, true);});
-        fog_of_war.insert(n, true);
+        // fog_of_war.insert(n, true);
+        fog_of_war.insert(n, false);
         Self::new(victory_condition, fog_of_war)
     }
 }

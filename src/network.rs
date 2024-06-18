@@ -17,6 +17,7 @@ use crate::Player;
 use core::panic;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt::format;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::BufWriter;
@@ -57,7 +58,6 @@ impl Endpoint for Client<Game> {
         self.app.draw(layout, assets, time)
     }
     fn update(mut self: Box<Self>) -> Box<dyn Endpoint> {
-        self.listen_for_player_joins();
         // Force a player to skip a turn if he has no units to move or no action points left.
         let Some(current_player_index) = self.app.current_player_index() else {return self};
         let current_player = self.app.current_player().unwrap();
@@ -66,8 +66,21 @@ impl Endpoint for Client<Game> {
         if current_player.actions == 0 || !can_player_issue_a_command {
             self.app.next_turn();
         }
-        self//Box::new(self)
-        // self.app.update()
+
+        match read_json_message_async(&self.stream) {
+            Some(result) => {
+                match result {
+                    Ok(message) => {
+                        self.handle_message(message);
+                    },
+                    Err(e) => {
+                        panic!("{}", e);
+                    }
+                }
+            }
+            None => {},
+        }
+        self
     }
     // fn swap_app(self: Box<Self>) -> Box<dyn Endpoint> {
     //     let app = self.app.swap();
@@ -101,8 +114,8 @@ impl Endpoint for Server<Game> {
     }
     fn update(mut self: Box<Self>) -> Box<dyn Endpoint> {
         self = Box::new(self.handle_client().unwrap());
-        self.poll_current_stream();
         self.app.update();
+        self = Box::new(self.poll_current_stream());
         self//Box::new(self)
     }
     // fn swap_app(self: Box<Self>) -> Box<dyn Endpoint> {
@@ -113,7 +126,7 @@ impl Endpoint for Server<Game> {
 
 pub struct Client<T: Component> {
     pub app: T,
-    stream: TcpStream,
+    pub stream: TcpStream,
 }
 
 impl Command {
@@ -181,11 +194,12 @@ impl Client<Game> {
         write_json_message(&stream, &message).unwrap();
         println!("Player sent...");
         // TODO: This will leak player.selection - perhaps censor the field before sending it here?
-        let Message::Initialise { players, world } = read_json_message(&stream).unwrap() else {panic!()};
+        let Message::Initialise { turn, players, world } = read_json_message(&stream).unwrap() else {panic!()};
         app.players = players;
         let my_idx = app.players.len() - 1;
         app.players[my_idx].controller = Controller::Human;
         app.world = world;
+        app.turn = turn;
         println!("Game state received...");
 
         stream.set_nonblocking(true)?;
@@ -217,7 +231,6 @@ impl Client<Game> {
         let message = Message::Command(command);
         write_json_message(&self.stream, &message);
         let Message::Command(command) = message else {panic!()};
-
         let Message::RevealFog(result) = read_json_message(&self.stream).unwrap() else {panic!()};
         match result {
             Ok(mut world) => self.app.world.extend(world.drain()),
@@ -227,7 +240,7 @@ impl Client<Game> {
     }
     pub fn listen_for_player_joins(&mut self) {
         let Some(Ok(Message::NewPlayer { starting_position, player })) = read_json_message_async(&self.stream) else {return};
-        self.app.world.gen_capital_at_cube(self.app.players.len() - 1, starting_position);
+        self.app.world.gen_capital_at_cube(self.app.players.len(), starting_position);
         self.app.players.push(player);
     }
 }
@@ -284,9 +297,9 @@ impl Server<Game> {
                     // let observations = self.app.world.get_visible_subset(fog);
                     // write_json_message(&stream, &observations);
 
-                    let message = Message::Initialise{players: self.app.players, world: self.app.world};
+                    let message = Message::Initialise{turn: self.app.turn, players: self.app.players, world: self.app.world};
                     write_json_message(&stream, &message);
-                    let Message::Initialise{players: mut p, world: w} = message else {panic!()};
+                    let Message::Initialise{players: mut p, world: w, ..} = message else {panic!()};
                     // self.app.players = p;
                     self.app.world = w;
 
@@ -294,9 +307,7 @@ impl Server<Game> {
                     // broadcast to other players
                     let message = Message::NewPlayer{starting_position, player};
                     for (_, s) in &self.streams {
-                        write_json_message(&stream, &message);
-                        // write_json_message(&s, &self.app.players[player_idx]);
-                        // write_json_message(&s, &starting_position);
+                        write_json_message(&s, &message);
                     }
                     let Message::NewPlayer{starting_position: _, player: pl} = message else {panic!()};
                     p.push(pl);
@@ -320,35 +331,35 @@ impl Server<Game> {
         Ok(self)
     }
 
-    fn poll_current_stream(&mut self) -> std::io::Result<()> {
+    fn poll_current_stream(mut self) -> Self {
         if self.streams.is_empty() {
-            return Ok(())
+            return self
         }
         let idx = self.app.current_player_index().unwrap();
         // println!("listening for player index {}", idx);
-        let Some(stream) = self.streams.get(&idx) else {return Ok(())};//&self.streams[idx];
+        let Some(stream) = self.streams.get(&idx) else {return self};//&self.streams[idx];
         // println!("got stream...");
         // let Ok(command): Result<Command, Box<dyn std::error::Error>> = read_json_message(stream) else {println!("bad command?"); return Ok(())};
-        let Some(Ok(message)): Option<Result<Message, std::io::Error>> = read_json_message_async(stream) else {return Ok(())};
+        let Some(Ok(message)): Option<Result<Message, std::io::Error>> = read_json_message_async(stream) else {return self};
         
         match message {
             Message::Command(command) => {
-                println!("{:?}", command);
                 self.handle_command(command)
             },
             Message::SkipTurn => {
                 self.app.current_player_mut().unwrap().skip_turn();
-                todo!();
-                // send an ok? let message = Message::
-                //send_json_message();
-                Ok(())
+
+                for (_, s) in self.streams.iter() {
+                    write_json_message(s, &Message::SkipTurn);
+                };
+                self
             }
-            _ => {Ok(())},
+            _ => {self},
         }
     }
-    fn handle_command(&mut self, command: Command) -> std::io::Result<()> {
+    fn handle_command(mut self, command: Command) -> Self {
         let idx = self.app.current_player_index().unwrap();
-        let Some(stream) = self.streams.get(&idx) else {return Ok(())};
+        let Some(stream) = self.streams.get(&idx) else {return self};
 
         // play out the command step-by-step
         // at each step, check which players can observe the command (before executing the step)
@@ -357,29 +368,33 @@ impl Server<Game> {
         // rn there are no steps, so the process is simplified. unit's position is leaked if a unit moves out of or into view, but this might eventually be represented (drawn), or the commands will be reworked to involve steps.
 
         // do not broadcast the same move to its sender
-        let mut n: Vec<usize> = (0..self.app.players.len()).collect();
-        n.remove(idx);
+        // let mut n: Vec<usize> = (0..self.app.players.len()).collect();
+        // n.remove(idx);
+        let n = 0..self.app.players.len(); //.into_iter()
 
-        let observations = n.into_iter().map(|i| self.app.player_fogs.get(&i)).map(|maybe_fog| command.get_observed_sections(maybe_fog));
-
+        let fogs = std::mem::take(&mut self.app.player_fogs);
+        let observations = n.map(|i| fogs.get(&i)).map(|maybe_fog| command.get_observed_sections(maybe_fog));
         // execute the move
-        self.app.world.execute_army_order(&command);
+        self.app.execute_command(&command);
 
         // tell client move was ok
-        let message = Message::RevealFog(Ok::<World, ServerResponseError>(World::new()));
-        write_json_message(stream, &message);
+        // let message = Message::RevealFog(Ok::<World, ServerResponseError>(World::new()));
+        // write_json_message(stream, &message);
 
         // send the observations to clients
-        observations.for_each(|obs| {
-            obs.into_iter().for_each(|command| {write_json_message(stream, &Message::Command(command));});
+        observations.enumerate().for_each(|(idx, obs)| {
+            obs.into_iter().for_each(|command| {
+                println!("sending {:?} to {}", command, idx);
+                write_json_message(self.streams.get(&idx).unwrap(), &Message::Command(command));
+            });
         });
-
-    Ok(())
+        self.app.player_fogs = fogs;
+        self
     }
 }
 
 /// Define a generic function to read and deserialize JSON messages
-fn read_json_message<T: serde::de::DeserializeOwned>(stream: &TcpStream) -> Result<T, Box<dyn std::error::Error>> {
+fn read_json_message(stream: &TcpStream) -> Result<Message, Box<dyn std::error::Error>> {
     let mut reader = BufReader::new(stream);
     let mut buffer = String::new();
 
@@ -388,6 +403,7 @@ fn read_json_message<T: serde::de::DeserializeOwned>(stream: &TcpStream) -> Resu
 
     // Deserialize the JSON message
     let response = serde_json::from_str(&buffer.trim_end())?;
+    println!("received {}", response);
 
     Ok(response)
 }
@@ -404,13 +420,16 @@ fn read_json_message_async(stream: &TcpStream) -> Option<std::io::Result<Message
     // Attempt to read from the stream
     match reader.read_line(&mut buffer) {
         Ok(0) => {
-            // Connection closed
+            println!("Connection closed");
             None
         },
         Ok(_) => {
             // Deserialize the JSON message
             match serde_json::from_str(&buffer.trim_end()) {
-                Ok(response) => Some(Ok(response)),
+                Ok(response) => {
+                    println!("received {}", response);
+                    Some(Ok(response))
+                },
                 Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
             }
         },
@@ -457,7 +476,8 @@ fn read_json_message_async(stream: &TcpStream) -> Option<std::io::Result<Message
 // }
 
 // fn write_json_message<T: Serialize>(stream: &TcpStream, message: &Message) -> Result<(), Box<dyn std::error::Error>> {
-fn write_json_message(stream: &TcpStream, message: &Message) -> Result<(), Box<dyn std::error::Error>> {
+pub fn write_json_message(stream: &TcpStream, message: &Message) -> Result<(), Box<dyn std::error::Error>> {
+    println!("sending {}", message);
     let mut writer = BufWriter::new(stream);
 
     let serialized_message = serde_json::to_string(&message)?;
@@ -498,14 +518,61 @@ fn write_json_message(stream: &TcpStream, message: &Message) -> Result<(), Box<d
 //     Chat(usize, String)
 // }
 
+// performing an action on the client side sends over a Command or a SkipTurn
+// the server replies with the same message which the client parses
+// and only then executes it.
 #[derive(Serialize, Deserialize)]
-enum Message {
+pub enum Message {
     NewPlayer {starting_position: Cube<i32>, player: Player},
-    Initialise {players: Vec<Player>, world: World},
+    Initialise {turn: usize, players: Vec<Player>, world: World},
     Command(Command),
     RevealFog(Result<World, ServerResponseError>),
     SkipTurn,
     Chat {id: usize, message: String},
+}
+
+impl core::fmt::Display for Message {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            Message::NewPlayer{..} => write!(f, "NewPlayer"),
+            Message::Initialise{..} => write!(f, "Initialise"),
+            Message::Command(_) => write!(f, "Command"),
+            Message::RevealFog(_) => write!(f, "RevealFog"),
+            Message::SkipTurn => write!(f, "SkipTurn"),
+            Message::Chat{..} => write!(f, "Chat"),
+        }
+    }
+}
+
+impl Client<Game> {
+    fn handle_message(&mut self, message: Message) {
+        match message {
+            Message::NewPlayer { starting_position, player } => {
+                self.app.world.gen_capital_at_cube(self.app.players.len(), starting_position);
+                self.app.players.push(player);
+            },
+            Message::Initialise { turn, players, world } => {},
+            Message::Command(command) => {
+                println!("executing command {:?}", command);
+                self.app.execute_command(&command);
+                // println!("clicking");
+                // self.app.click(&command.from);
+                // self.app.click(&command.to);
+            },
+            Message::RevealFog(result) => {
+                match result {
+                    Ok(mut world) => self.app.world.extend(world.drain()),
+                    Err(e) => panic!("{}", e),
+                }
+            },
+            Message::SkipTurn => {
+                self.app.current_player_mut().unwrap().skip_turn();
+            },
+            Message::Chat { id, message } => {
+                todo!()
+            },
+        }
+    }
 }
 
 // fn process_message(message: String) {

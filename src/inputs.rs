@@ -1,6 +1,7 @@
 use crate::cubic::Cube;
 use crate::cubic::OrientationKind;
 use crate::game::Game;
+use crate::write_json_message;
 use crate::Controller;
 use crate::Layout;
 use crate::cubic;
@@ -9,6 +10,7 @@ use crate::mquad::Assets;
 use crate::world::LocalityCategory;
 use crate::world::Tile;
 use crate::world::World;
+use crate::Message;
 use macroquad::input::*;
 use macroquad::prelude::*;
 
@@ -170,12 +172,14 @@ pub fn poll_inputs_client(client: &mut crate::Client<Game>, layout: &mut Layout<
         if let Some(_) = game.world.get(&cube) {
             match game.click(&cube) {
                 Some(command) => {
-                    match client.send_command(command) {
-                        Ok(command) => {
-                            client.app.execute_command(&command);
-                        },
-                        Err(_) => println!("command rejected by server")
-                    }
+                    // rely on server broadcasting it back to you to execute it
+                    write_json_message(&client.stream, &Message::Command(command));
+                    // match client.send_command(command) {
+                    //     Ok(command) => {
+                    //         client.app.execute_command(&command);
+                    //     },
+                    //     Err(_) => println!("command rejected by server")
+                    // }
                     
                 },
                 None => {}
@@ -186,7 +190,8 @@ pub fn poll_inputs_client(client: &mut crate::Client<Game>, layout: &mut Layout<
 
     let player = &mut game.players[player_index];
     if is_key_pressed(KeyCode::Space) & matches!(player.controller, Controller::Human) {
-        player.skip_turn();
+        write_json_message(&client.stream, &Message::SkipTurn);
+        // player.skip_turn();
     }
 
     poll_camera_inputs(layout);

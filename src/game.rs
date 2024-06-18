@@ -57,7 +57,7 @@ impl VictoryCondition {
 }
 #[derive(Serialize, Deserialize)]
 pub struct Game {
-    pub turn: i32,
+    pub turn: usize,
     pub players: Vec<Player>,//[&'a Player<'a>],//Vec<&Player>,
     //pub current_player: &'a Player, // change it to a function?
     pub world: World,
