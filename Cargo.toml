@@ -30,6 +30,17 @@ geozero-shp = "0.4.0"
 # winit_input_helper = "0.14.1"
 ahash = "0.8.11"
 clap = {version = "4.5.7", features = ["derive"] }
+rust-fsm = "0.7.0"
+pda = { path = "src/ui/pda" }
+dsl = { path = "src/ui/dsl" }
+hashbrown = "0.14.5"
+
+[workspace]
+members = [
+    ".",
+    "src/ui/pda",
+    "src/ui/dsl",
+]
 
 [patch.crates-io]
 dbase = { path = "dbase-rs" }

@@ -1,0 +1,40 @@
+name: Build and Deploy to gh-pages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure rustup and install wasm-bindgen
+      run: |
+        rustup install nightly-2023-06-12
+        rustup default nightly-2023-06-12
+        rustup target add wasm32-unknown-unknown
+        cargo install wasm-bindgen-cli --version 0.2.88
+      
+    - name: Build app
+      run: ./wasm-bindgen-macroquad.sh cubic --release
+        
+    - name: Deploy to gh-pages
+      run: |
+        git config --global user.email "d.januszkiewicz@gmail.com"
+        git config --global user.name "Alicja Januszkiewicz"
+        git checkout --orphan gh-pages
+        git reset # existing files will be staged at this point
+        git add "dist/" # commit /dist/ and remove everything else
+        git commit -m "tmp"
+        git clean -dfx
+        git update-ref -d HEAD # redo the first commit
+        git reset
+        mv dist/* .
+        git add .
+        git commit -m "Deploy binary artifact to gh-pages"
+        git push origin gh-pages --force

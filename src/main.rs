@@ -14,6 +14,7 @@ mod fog;
 mod rules;
 mod network;
 mod cli;
+mod ui;
 
 use clap::Parser;
 use fog::*;
@@ -23,6 +24,7 @@ use cubic::*;
 use game::*;
 use miniquad::native::linux_x11::libx11::VisibilityChangeMask;
 use rules::Ruleset;
+use ui::main_menu;
 use world::*;
 use inputs::*;
 use map_editor::*;
@@ -254,6 +256,7 @@ enum Endpoint_ <T: Component> {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    ui::test_ui();
     set_pc_assets_folder("assets");
     let mut assets = load_assets().await;
 
@@ -328,6 +331,7 @@ async fn main() {
     while !exit {
         exit = endpoint.poll(&mut layout);
         endpoint.draw(&mut layout, &mut assets, time);
+        main_menu();
         next_frame().await;
         endpoint = endpoint.update();
         // if is_key_pressed(KeyCode::F1) {
