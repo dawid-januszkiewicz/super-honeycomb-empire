@@ -231,7 +231,7 @@ pub fn draw_tile_selector(&layout: &Layout<f32>) {
 
 fn draw_locality_name(layout: &Layout<f32>, cube: &Cube<i32>, tile: &Tile, font: Font) {
     let params = TextParams{
-        font,
+        font: Some(&font),
         font_size: (0.9 * layout.size[0]) as u16, // 6,
         //font_scale: (0.7 * layout.size[0]),
         ..Default::default()
@@ -245,7 +245,7 @@ fn draw_locality_name(layout: &Layout<f32>, cube: &Cube<i32>, tile: &Tile, font:
 
         let p = Cube::<f32>::from(*cube).to_pixel(&layout);
         let [mut x, mut y] = [p.0, p.1];
-        let center: Vec2 = get_text_center(locality.name.as_str(), Some(params.font), params.font_size, params.font_scale, params.rotation);
+        let center: Vec2 = get_text_center(locality.name.as_str(), params.font, params.font_size, params.font_scale, params.rotation);
         x -= center.x;
         y -= layout.size[1] + center.y;
         draw_text_ex(locality.name.as_str(), x, y, params);
@@ -262,7 +262,7 @@ pub fn draw_all_locality_names(world: &World, layout: &Layout<f32>, assets: &Ass
     let cubes_within_draw_range = cube.disc(5);
     for cube in cubes_within_draw_range {
         match world.get(&cube) {
-            Some(tile) if tile.locality.is_some() => draw_locality_name(layout, &cube, tile, assets.font),
+            Some(tile) if tile.locality.is_some() => draw_locality_name(layout, &cube, tile, assets.font.clone()),
             _ => {},
         }
     }

@@ -97,7 +97,7 @@ pub fn draw_base_tiles(world: &std::collections::HashMap<&Cube<i32>, &Tile>, lay
                 // gl_use_default_material();
             },
             TileCategory::Water => {
-                gl_use_material(assets.water_material);
+                gl_use_material(&assets.water_material);
                 draw_hexagon(x, y, size, 0., vertical, BLACK, SKYBLUE);
                 gl_use_default_material();
             }
@@ -149,18 +149,18 @@ pub fn draw_game_tiles(world: &std::collections::HashMap<&Cube<i32>, &Tile>, lay
                 LocalityCategory::City => draw_circle(x, y, size/2., DARKBROWN),
                 LocalityCategory::PortCity => {
                     draw_circle(x, y, size/2., BLUE);
-                    draw_texture_ex(assets.port, x - port_offset, y - port_offset, WHITE, port_params.clone());
+                    draw_texture_ex(&assets.port, x - port_offset, y - port_offset, WHITE, port_params.clone());
                 },
                 LocalityCategory::Airport => {
                     draw_rectangle(x - size/2., y - size/2., size, size, DARKGREEN);
-                    draw_texture_ex(assets.airport, x - airport_offset, y - airport_offset, WHITE, airport_params.clone());
+                    draw_texture_ex(&assets.airport, x - airport_offset, y - airport_offset, WHITE, airport_params.clone());
                 }
             }
         }
         if tile.army.is_some() {
             let color = owner_to_color(&tile.army.as_ref().unwrap().owner_index);
             // draw_texture(assets.army, x - x_army_offset, y - y_army_offset, color);
-            draw_texture_ex(assets.army, x - x_army_offset, y - y_army_offset, color, army_params.clone());
+            draw_texture_ex(&assets.army, x - x_army_offset, y - y_army_offset, color, army_params.clone());
         }
         // if let Some(tile.locality) = locality {
         //     draw_circle(x, y, size, DARKBROWN)
@@ -194,7 +194,7 @@ impl World {
                     // gl_use_default_material();
                 },
                 TileCategory::Water => {
-                    gl_use_material(assets.water_material);
+                    gl_use_material(&assets.water_material);
                     draw_hexagon(x, y, size, 0., vertical, BLACK, SKYBLUE);
                     gl_use_default_material();
                 }
@@ -244,18 +244,18 @@ impl World {
                     LocalityCategory::City => draw_circle(x, y, size/2., DARKBROWN),
                     LocalityCategory::PortCity => {
                         draw_circle(x, y, size/2., BLUE);
-                        draw_texture_ex(assets.port, x - port_offset, y - port_offset, WHITE, port_params.clone());
+                        draw_texture_ex(&assets.port, x - port_offset, y - port_offset, WHITE, port_params.clone());
                     },
                     LocalityCategory::Airport => {
                         draw_rectangle(x - size/2., y - size/2., size, size, DARKGREEN);
-                        draw_texture_ex(assets.airport, x - airport_offset, y - airport_offset, WHITE, airport_params.clone());
+                        draw_texture_ex(&assets.airport, x - airport_offset, y - airport_offset, WHITE, airport_params.clone());
                     }
                 }
             }
             if tile.army.is_some() {
                 let color = owner_to_color(&tile.army.as_ref().unwrap().owner_index);
                 // draw_texture(assets.army, x - x_army_offset, y - y_army_offset, color);
-                draw_texture_ex(assets.army, x - x_army_offset, y - y_army_offset, color, army_params.clone());
+                draw_texture_ex(&assets.army, x - x_army_offset, y - y_army_offset, color, army_params.clone());
             }
             // if let Some(tile.locality) = locality {
             //     draw_circle(x, y, size, DARKBROWN)

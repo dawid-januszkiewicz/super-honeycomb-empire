@@ -11,7 +11,9 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 csv = "1.2.2"
 # macroquad
-macroquad = "0.3.26"
+#macroquad = "0.3.26"
+#macroquad = { version = "0.3.26", default-features = false}
+macroquad = { version = "0.4.13", default-features = false }
 rand = "0.8.5"
 getrandom = { version = "0.2", features = ["js"] } # wasm
 strum = { version = "0.25", features = ["derive"] }
@@ -28,7 +30,7 @@ geozero-shp = "0.4.0"
 # winit = "0.28.6"
 # error-iter = "0.4.1"
 # winit_input_helper = "0.14.1"
-ahash = "0.8.11"
+# ahash = "0.8.11"
 clap = {version = "4.5.7", features = ["derive"] }
 rust-fsm = "0.7.0"
 pda = { path = "src/ui/pda" }
@@ -42,5 +44,5 @@ members = [
     "src/ui/dsl",
 ]
 
-[patch.crates-io]
-dbase = { path = "dbase-rs" }
+#[patch.crates-io]
+#dbase = { path = "dbase-rs" }

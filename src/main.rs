@@ -1,4 +1,5 @@
 #![feature(trait_alias)]
+#![allow(warnings)]
 
 mod cubic;
 mod game;
@@ -22,7 +23,8 @@ use ai::*;
 use cli::*;
 use cubic::*;
 use game::*;
-use miniquad::native::linux_x11::libx11::VisibilityChangeMask;
+//use miniquad::{gl::glShaderSource, native::linux_x11::libx11::VisibilityChangeMask, UniformDesc};
+use miniquad::UniformDesc;
 use rules::Ruleset;
 use ui::main_menu;
 use world::*;
@@ -120,13 +122,17 @@ async fn load_assets() -> Assets {
     );
     // let fields = load_texture("assets/grass.png").await.expect("Failed to load texture");
 
+    let water_shader = crate::miniquad::ShaderSource::Glsl{
+        fragment: WATER_FRAGMENT_SHADER,
+        vertex: WATER_VERTEX_SHADER,
+    };
+
     let water_material = load_material(
-        WATER_VERTEX_SHADER,
-        WATER_FRAGMENT_SHADER,
+        water_shader,
         MaterialParams {
             uniforms: vec![
-                ("Time".to_owned(), UniformType::Float1),
-                ("RectSize".to_owned(), UniformType::Float2),
+                UniformDesc::new("Time", UniformType::Float1),
+                UniformDesc::new("RectSize", UniformType::Float2),
             ],
             ..Default::default()
         },
