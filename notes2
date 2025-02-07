@@ -1,0 +1,13 @@
+RUSTFLAGS="-Zlinker-features=+lld" cargo run -j 16
+
+Map => generate new or load existing
+
+generate map => templates, no of players
+
+load existing => file browser
+
+option to edit map before starting
+
+edit scenario settings
+- fog
+- win conditions

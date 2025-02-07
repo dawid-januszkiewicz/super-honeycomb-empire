@@ -34,6 +34,29 @@ pub trait Endpoint {
     // fn swap_app(self: Box<Self>) -> Box<dyn Endpoint>;
 }
 
+pub struct NullEndpoint<T: Component> {
+    pub app: T,
+}
+
+impl NullEndpoint<Game> {
+    pub fn new(app: Game) -> Self {
+        Self {app}
+    }
+}
+
+impl Endpoint for NullEndpoint<Game> {
+    fn poll(&mut self, layout: &mut Layout<f32>) -> bool {
+        self.app.poll(layout)
+    }
+    fn draw(&self, layout: &Layout<f32>, assets: &Assets, time: f32) {
+        self.app.draw(layout, assets, time)
+    }
+    fn update(mut self: Box<Self>) -> Box<dyn Endpoint> {
+        self.app.update();
+        self
+    }
+}
+
 // impl<T: Component + 'static> Endpoint for Client<T> {
 //     fn poll(&mut self, layout: &mut Layout<f32>) -> bool {
 //         self.app.poll(layout)

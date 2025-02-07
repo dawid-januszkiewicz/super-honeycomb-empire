@@ -16,6 +16,7 @@ use std::fmt::Result;
 
 use serde::Deserialize;
 use serde::Serialize;
+use strum::{EnumIter, Display};
 
 use crate::cubic::*;
 use crate::rules::Ruleset;
@@ -34,7 +35,7 @@ use crate::world::Command;
 use crate::world::TileCategory;
 use crate::world::gen::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, EnumIter, Display, PartialEq)]
 pub enum VictoryCondition {
     Elimination,
     Territory(f32),
@@ -96,13 +97,10 @@ impl Game {
             }
         }
     }
-    pub fn new(players: Vec<Player>, assets: &mut Assets) -> Self {
+    pub fn new(players: Vec<Player>, rules: Ruleset, assets: &mut Assets) -> Self {
         let world: World = World::new();
         let player_fogs = HashMap::new();
-    
-        let victory_condition = VictoryCondition::Territory(0.30);
-        let rules = Ruleset::default(victory_condition, &players);
-    
+
         let mut game = Self {
             turn: 1,
             players,

@@ -17,12 +17,12 @@ macroquad = { version = "0.4.13", default-features = false }
 rand = "0.8.5"
 getrandom = { version = "0.2", features = ["js"] } # wasm
 strum = { version = "0.25", features = ["derive"] }
-fraction = "0.14.0"
+# fraction = "0.14.0"
 shapefile = "0.6.0"
-web-sys = "0.3.69"
+# web-sys = "0.3.69"
 dbase = "0.5.0"
-geozero = "0.12.0"
-geozero-shp = "0.4.0"
+# geozero = "0.12.0"
+# geozero-shp = "0.4.0"
 # pixels dependencies
 # pixels = "0.13.0"
 # log = "0.4.19"
@@ -36,6 +36,10 @@ rust-fsm = "0.7.0"
 pda = { path = "src/ui/pda" }
 dsl = { path = "src/ui/dsl" }
 hashbrown = "0.14.5"
+# iced = "0.13.1"
+# glow = "0.16.0"
+# iced_glow = "0.8.0"
+iced_macroquad = { git = "https://github.com/B0ney/iced_macroquad/", version = "0.1.0" }
 
 [workspace]
 members = [

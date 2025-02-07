@@ -40,6 +40,7 @@ use dbase;
 
 const WATER_FRAGMENT_SHADER: &'static str = include_str!("../assets/water_fragment_shader.glsl");
 const WATER_VERTEX_SHADER: &'static str = include_str!("../assets/water_vertex_shader.glsl");
+const FONT: &[u8] = include_bytes!("../assets/Iceberg-Regular.ttf");
 
 fn load_rivers(shape: &Vec<(f32, f32)>) -> Vec<(usize, f32, f32)> {
     let x_min = shape.iter().fold(f32::NAN, |a, &b| a.min(b.0));
@@ -93,8 +94,7 @@ async fn load_assets() -> Assets {
     // let locality_names = locality_names_v.iter().map(String::as_str).collect();
     // let locality_names: Vec<&str> = locality_names_v.iter().map(|s| &**s).collect();
 
-    let fb = include_bytes!("../assets/Iceberg-Regular.ttf");
-    let font = load_ttf_font_from_bytes(fb).unwrap();
+    let font = load_ttf_font_from_bytes(FONT).unwrap();
     // let font = load_ttf_font("assets/Iceberg-Regular.ttf").await.unwrap();
     // let army = Texture2D::from_file_with_format(
     //     include_bytes!("../assets/army.png"),
@@ -196,7 +196,7 @@ fn window_conf() -> Conf {
     }
 }
 
-fn new_game(assets: &mut Assets) -> Game {
+fn new_game(rules: Ruleset, assets: &mut Assets) -> Game {
     let ai1 = AI{scores: DEFAULT_SCORES};
     let ai2 = AI{scores: DEFAULT_SCORES};
     let ai3 = AI{scores: DEFAULT_SCORES};
@@ -209,8 +209,8 @@ fn new_game(assets: &mut Assets) -> Game {
     let player3 = Player::new("Greenland", Controller::AI(ai3));
     // let player4 = Player::new("Violetnam", Some(ai4));
 
-    // let players: Vec<Player> = vec![player1, player2, player3];
-    let players: Vec<Player> = Vec::new();
+    let players: Vec<Player> = vec![player1, player2, player3];
+    // let players: Vec<Player> = Vec::new();
 
     // let players = vec![player1, player2, player3, player4];
     // let players = vec![player1, player2, ];//player3, player4];
@@ -220,7 +220,7 @@ fn new_game(assets: &mut Assets) -> Game {
     // // let mut world = World::from_json("assets/maps/map.json");
     // // let mut world = World::from_json("assets/saves/quicksave.json");
 
-    Game::new(players, assets)
+    Game::new(players, rules, assets)
 }
 
 // async fn game_loop(game: &mut Game, layout: &mut Layout<f32>, assets: &Assets) {
@@ -255,20 +255,21 @@ fn new_game(assets: &mut Assets) -> Game {
 //     new_game(assets)
 // }
 
-enum Endpoint_ <T: Component> {
-    Client(Client<T>),
-    Server(Server<T>),
-}
-
 #[macroquad::main(window_conf)]
 async fn main() {
-    ui::test_ui();
+    // ui::test_ui();
     set_pc_assets_folder("assets");
+
+    let (mut exit, ui) = main_menu().await;
+
+    if exit {return};
+
     let mut assets = load_assets().await;
 
     // run_editor(&assets).await;
 
-    let mut game = new_game(&mut assets);
+    let mut game = new_game(Ruleset::from(ui), &mut assets);
+    // println!("Players (inside main): {:?}", game.players);
 
     // Game {turn: 0, Vec::new(), World::new(), HashMap::new(), Ruleset::new()}
 
@@ -277,37 +278,17 @@ async fn main() {
 
     // let mut app: &mut dyn Component = &mut game;
 
-    //// let mut app_endpoint: &mut dyn Endpoint_ = &mut endpoint;
-    //// have a Endpoint_<Game> and an Endpoint_<Editor> and swap between the two
-
     let args = Cli::parse();
     match args.mode {
         Mode::Client => println!("Running in client mode"),
         Mode::Server => println!("Running in server mode"),
+        Mode::Offline => println!("Running in offline mode"),
     }
-
-    // let mut endpoint_game = match mode {
-    //     "client" => Endpoint_::Client(Client::new(game, "").unwrap()),
-    //     "server" => Endpoint_::Server(Server::new(game, "").unwrap()),
-    // };
-    // let mut endpoint_editor = match mode {
-    //     "client" => Endpoint_::Client(Client::new(editor, "").unwrap()),
-    //     "server" => Endpoint_::Server(Server::new(editor, "").unwrap()),
-    // };
-    // let &mut endpoint = &mut endpoint_game;
-
-
-
-    // endpoint = match endpoint {
-    //     Endpoint_::Client(e) => {
-    //         Endpoint_::Client(Client::new(e.app.swap(), "").unwrap())
-    //     },
-    //     Endpoint_::Server(e) => {todo!()},
-    // };
 
     let mut endpoint: Box<dyn Endpoint> = match args.mode { // possibly replace Box<dyn Endpoint> with trait Endpoint if and when existential types are stabilised
         Mode::Client => Box::new(Client::new(game, &args.addrs).unwrap()),
         Mode::Server => Box::new(Server::new(game, &args.addrs).unwrap()),
+        Mode::Offline => Box::new(NullEndpoint::new(game)),
     };
     println!("endpoint initialised!");
     // endpoint = Box::new(endpoint.swap_app())
@@ -333,11 +314,9 @@ async fn main() {
     let mut layout = assets.init_layout.clone();
 
     let mut time = 0.0;
-    let mut exit = false;
     while !exit {
         exit = endpoint.poll(&mut layout);
         endpoint.draw(&mut layout, &mut assets, time);
-        main_menu();
         next_frame().await;
         endpoint = endpoint.update();
         // if is_key_pressed(KeyCode::F1) {
