@@ -1,3 +1,4 @@
+use chrono::Local;
 use rand::random;
 use serde::Deserialize;
 use serde::Serialize;
@@ -14,6 +15,7 @@ use crate::World;
 use crate::Command;
 use crate::Player;
 
+use core::fmt;
 use core::panic;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -32,14 +34,22 @@ pub trait Endpoint {
     fn draw(&self, layout: &Layout<f32>, assets: &Assets, time: f32);
     fn update(self: Box<Self>) -> Box<dyn Endpoint>;
     // fn swap_app(self: Box<Self>) -> Box<dyn Endpoint>;
+    fn get_chatlog(&self) -> Vec<&ChatMsg>;
+    fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>>;
 }
 
+// pub trait Chat {
+//     fn get_chatlog(&self) -> Vec<&ChatMsg>;
+//     fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>>;
+// }
+
+#[derive(Debug)]
 pub struct NullEndpoint<T: Component> {
     pub app: T,
 }
 
-impl NullEndpoint<Game> {
-    pub fn new(app: Game) -> Self {
+impl<T: Component> NullEndpoint<T> {
+    pub fn new(app: T) -> Self {
         Self {app}
     }
 }
@@ -54,6 +64,12 @@ impl Endpoint for NullEndpoint<Game> {
     fn update(mut self: Box<Self>) -> Box<dyn Endpoint> {
         self.app.update();
         self
+    }
+    fn get_chatlog(&self) -> Vec<&ChatMsg> {
+        panic!("undefined")
+    }
+    fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>> {
+        panic!("undefined")
     }
 }
 
@@ -109,6 +125,14 @@ impl Endpoint for Client<Game> {
     //     let app = self.app.swap();
     //     Box::new(Server::new(app, "127.0.0.1:8080").unwrap())
     // }
+    fn get_chatlog(&self) -> Vec<&ChatMsg> {
+        let chatlog: Vec<&ChatMsg> = self.chatlog.iter().collect();
+        chatlog
+    }
+    fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>> {
+        let message = Message::Chat(ChatMsg::from_str(&msg));
+        write_json_message(&self.stream, &message)
+    }
 }
 
 // impl<T: Component + 'static> Endpoint for Server<T> {
@@ -145,11 +169,71 @@ impl Endpoint for Server<Game> {
     //     let app = self.app.swap();
     //     Box::new(Server::new(app, "127.0.0.1:8080").unwrap())
     // }
+    fn get_chatlog(&self) -> Vec<&ChatMsg> {
+        let chatlog: Vec<&ChatMsg> = self.chatlog.iter().collect();
+        chatlog
+    }
+    fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>> {
+        let author = "Server".to_string();
+        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let message = ChatMsg {body: msg, author, timestamp};
+        for (_, s) in self.streams.iter() {
+            write_json_message(s, &Message::Chat(message.clone()));
+        };
+        self.chatlog.push(message);
+        Ok(()) // todo: handle one or more errors
+    }
 }
 
+#[derive(Debug)]
 pub struct Client<T: Component> {
     pub app: T,
     pub stream: TcpStream,
+    chatlog: Vec<ChatMsg>,
+}
+
+#[derive(Debug)]
+pub struct ChatClient {
+    pub stream: TcpStream,
+    pub chatlog: Vec<ChatMsg>,
+}
+
+// pub struct Client_<S> {_marker: std::marker::PhantomData<S>}
+
+// impl<S> Client_<S> {
+//     fn get_chatlog(&self) -> Vec<&ChatMsg> {
+//         let chatlog: Vec<&ChatMsg> = self.chatlog.iter().collect();
+//         chatlog
+//     }
+//     fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>> {
+//         let message = Message::Chat(ChatMsg::from_str(&msg));
+//         write_json_message(&self.stream, &message)
+//     }
+// }
+
+impl ChatClient {
+    pub fn new<A: std::net::ToSocketAddrs + core::fmt::Display>(addr: A) -> Result<Self, std::io::Error> {
+        println!("Connecting to {}...", addr);
+        let stream = TcpStream::connect(addr)?;
+        println!("TCP connection established...");
+
+        // let n = random::<usize>() % 100;
+        // let player = Player::new(&format!("Player {}", n), Controller::Human);
+        // let message = Message::NewPlayer{starting_position: Cube::new(0, 0), player};
+        // write_json_message(&stream, &message).unwrap();
+        // println!("Player sent...");
+
+        stream.set_nonblocking(true)?;
+        let chatlog = vec!();
+        Ok(Self{stream, chatlog})
+
+        //Ok(Self{player: Player::new("default", None), app, stream})
+        // if let Ok(stream) = TcpStream::connect(addr) {
+        //     println!("Connected to the server!");
+        // } else {
+        //     println!("Couldn't connect to server...");
+        // }
+    }
 }
 
 impl Command {
@@ -163,10 +247,10 @@ impl Command {
     //     // let command_path: 
     //     // let observed_route_positions = 
     // }
-    pub fn get_observed_sections(&self, observers: Option<&Fog>) -> Vec<Command> {
-        match observers {
-            Some(fog) => {
-                if (fog.contains_key(&self.from) || fog.contains_key(&self.to)) {
+    pub fn get_observed_sections(&self, maybe_view: Option<&World>) -> Vec<Command> {
+        match maybe_view {
+            Some(view) => {
+                if (view.contains_key(&self.from) || view.contains_key(&self.to)) {
                     vec![self.clone()]
                 } else {
                     vec![]
@@ -204,7 +288,6 @@ impl Command {
 //     }
 // }
 
-
 impl Client<Game> {
     pub fn new<A: std::net::ToSocketAddrs + core::fmt::Display>(mut app: Game, addr: A) -> Result<Self, std::io::Error> {
         println!("Connecting to {}...", addr);
@@ -226,7 +309,8 @@ impl Client<Game> {
         println!("Game state received...");
 
         stream.set_nonblocking(true)?;
-        Ok(Self{app, stream})
+        let chatlog = vec!();
+        Ok(Self{app, stream, chatlog})
 
         //Ok(Self{player: Player::new("default", None), app, stream})
         // if let Ok(stream) = TcpStream::connect(addr) {
@@ -280,13 +364,34 @@ pub trait Component {
     fn draw(&self, layout: &Layout<f32>, assets: &Assets, time: f32);
     fn update(&mut self);
     fn swap(self) -> impl Component;
+    // fn empty() -> Self;
 }
 
+#[derive(Debug)]
 pub struct Server<T: Component> {
     // game: Game,
     pub app: T,
     listener: TcpListener,
     streams: HashMap<usize, TcpStream>, // some players may not have a stream
+    chatlog: Vec<ChatMsg>,
+}
+
+pub struct ChatServer {
+    listener: TcpListener,
+    streams: HashMap<usize, TcpStream>, // some players may not have a stream
+    pub chatlog: Vec<ChatMsg>,
+}
+
+impl ChatServer {
+    pub fn new<A: std::net::ToSocketAddrs>(addr: A) -> Result<Self, std::io::Error>{
+        let listener = std::net::TcpListener::bind(addr)?;
+        listener.set_nonblocking(true)?;
+        let streams = HashMap::new();
+        let chatlog = vec!();
+        Ok(Self{listener, streams, chatlog})
+        // let listeners: Result<Vec<_>, _> = addrs.iter().map(|a| {std::net::TcpListener::bind(a)}).collect();
+        // Ok(Self{game, listeners: listeners?})
+    }
 }
 
 impl<T: Component> Server<T> {
@@ -294,7 +399,8 @@ impl<T: Component> Server<T> {
         let listener = std::net::TcpListener::bind(addr)?;
         listener.set_nonblocking(true)?;
         let streams = HashMap::new();
-        Ok(Self{app, listener, streams})
+        let chatlog = vec!();
+        Ok(Self{app, listener, streams, chatlog})
         // let listeners: Result<Vec<_>, _> = addrs.iter().map(|a| {std::net::TcpListener::bind(a)}).collect();
         // Ok(Self{game, listeners: listeners?})
     }
@@ -376,7 +482,12 @@ impl Server<Game> {
                     write_json_message(s, &Message::SkipTurn);
                 };
                 self
-            }
+            },
+            Message::Chat(msg) => {
+                self.chatlog.push(msg.clone());
+                write_json_message(stream, &Message::Chat(msg));
+                self
+            },
             _ => {self},
         }
     }
@@ -395,8 +506,8 @@ impl Server<Game> {
         // n.remove(idx);
         let n = 0..self.app.players.len(); //.into_iter()
 
-        let fogs = std::mem::take(&mut self.app.player_fogs);
-        let observations = n.map(|i| fogs.get(&i)).map(|maybe_fog| command.get_observed_sections(maybe_fog));
+        let views = std::mem::take(&mut self.app.player_views);
+        let observations = n.map(|i| views.get(&i)).map(|maybe_view| command.get_observed_sections(maybe_view));
         // execute the move
         self.app.execute_command(&command);
 
@@ -411,7 +522,7 @@ impl Server<Game> {
                 write_json_message(self.streams.get(&idx).unwrap(), &Message::Command(command));
             });
         });
-        self.app.player_fogs = fogs;
+        self.app.player_views = views;
         self
     }
 }
@@ -551,7 +662,7 @@ pub enum Message {
     Command(Command),
     RevealFog(Result<World, ServerResponseError>),
     SkipTurn,
-    Chat {id: usize, message: String},
+    Chat(ChatMsg),
 }
 
 impl core::fmt::Display for Message {
@@ -574,7 +685,7 @@ impl Client<Game> {
                 self.app.world.gen_capital_at_cube(self.app.players.len(), starting_position);
                 self.app.players.push(player);
             },
-            Message::Initialise { turn, players, world } => {},
+            Message::Initialise {..} => {},
             Message::Command(command) => {
                 println!("executing command {:?}", command);
                 self.app.execute_command(&command);
@@ -591,8 +702,8 @@ impl Client<Game> {
             Message::SkipTurn => {
                 self.app.current_player_mut().unwrap().skip_turn();
             },
-            Message::Chat { id, message } => {
-                todo!()
+            Message::Chat(msg) => {
+                self.chatlog.push(msg);
             },
         }
     }
@@ -643,3 +754,23 @@ impl Client<Game> {
 //         }
 //     }
 // }
+
+// A chatlog is just a vector of these structs
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ChatMsg {
+    body: String,
+    author: String,
+    timestamp: String,
+}
+
+impl fmt::Display for ChatMsg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}] {}: {}", self.timestamp, self.author, self.body)
+    }
+}
+
+impl ChatMsg {
+    pub fn from_str(msg: &str) -> Self {
+        Self {body: msg.to_string(), author: String::new(), timestamp: String::new()}
+    }
+}

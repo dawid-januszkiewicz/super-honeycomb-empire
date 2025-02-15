@@ -259,12 +259,12 @@ fn new_game(rules: Ruleset, assets: &mut Assets) -> Game {
 async fn main() {
     // ui::test_ui();
     set_pc_assets_folder("assets");
+    let mut assets = load_assets().await;
 
-    let (mut exit, ui) = main_menu().await;
+    let (mut exit, ui) = main_menu(&mut assets).await;
 
     if exit {return};
 
-    let mut assets = load_assets().await;
 
     // run_editor(&assets).await;
 

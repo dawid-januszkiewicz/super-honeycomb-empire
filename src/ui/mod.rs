@@ -2,20 +2,23 @@ use core::panic;
 use std::collections::HashSet;
 use dsl::pda;
 use hashbrown::HashMap;
+// use iced_macroquad::iced::raw::Element;
 // use pda::*;
 use pda::PushdownAutomaton;
 use strum::IntoEnumIterator;
 
-use crate::game::VictoryCondition;
+use crate::game::{Game, VictoryCondition};
+use crate::mquad::Assets;
+use crate::network::{ChatClient, ChatMsg, ChatServer, Client, Component, NullEndpoint, Server};
 use crate::rules::Ruleset;
 use crate::world::Player;
 use crate::{next_frame, vec2, Vec2, FONT};
 
 use iced_macroquad::{Interface};
-use iced_macroquad::iced::{Length, Theme};
+use iced_macroquad::iced::{Element, Length, Theme};
 use iced_macroquad::iced::{font, font::Font};
-use iced_macroquad::iced::widget::{Button, Row, Column, Text, Container, Checkbox};
-use iced_macroquad::iced::widget::{button, row, column, text, center, checkbox};
+use iced_macroquad::iced::widget::{Button, Checkbox, Column, Container, Renderer, Row, Text};
+use iced_macroquad::iced::widget::{button, row, column, text, center, checkbox, text_input, scrollable};
 
 use macroquad::prelude::*;
 
@@ -67,16 +70,28 @@ const FONT_HANDLE: Font = Font::with_name("Iceberg");
 
 pda! {
     Main => Single => Game,
-    Single => Map,
-    Map => Single,
-    Main => Multi => Host => Game,
-    Main => Multi => Join => Lobby,
+            Single => Map,
+
+    Main => Multi => Lobby => Game,
+                     Lobby => Map,
+
     Main => Settings,
+}
+
+#[derive(Debug, Clone)]
+enum EndpointType {
+    Null,
+    Client,
+    Server,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     Transition(Input),
+    IpAddressChanged(String),
+    ChatMessageChanged(String),
+    SendChatMessage,
+    TransitionAndSetEndpoint(Input, EndpointType),
     VictoryConditionNext,
     VictoryConditionPrev,
     FogOfWarToggled,
@@ -86,10 +101,35 @@ enum Message {
 // #[derive(Default)]
 pub struct App {
     menu: PushdownAutomaton<State, Input, State>,
+    ip_address: String,
+    endpoint: Endpoint,
+    chat_message: String,
     players: Vec<Player>,
     victory_condition: VictoryCondition,
     fog_of_war: bool,
     exit: bool,
+}
+
+pub enum Endpoint {
+    Client(ChatClient),
+    Server(ChatServer),
+    Offline(),
+}
+
+impl Endpoint {
+    fn get_chatlog(&self) -> Vec<&ChatMsg> {
+        match self {
+            Endpoint::Client(c) => c.chatlog.iter().collect(),
+            Endpoint::Server(s) => s.chatlog.iter().collect(),
+            Endpoint::Offline() => panic!(),
+        }
+    }
+}
+
+impl Endpoint {
+    fn send_chat_message(&self, msg: String) {
+        self.send_chat_message(msg);
+    }
 }
 
 impl From<App> for Ruleset {
@@ -101,6 +141,30 @@ impl From<App> for Ruleset {
 fn update(app: &mut App, message: Message) {
     match message {
         Message::Transition(input) => {
+            app.menu.transition(input);
+        }
+        Message::IpAddressChanged(addr) => {
+            app.ip_address = addr;
+        }
+        Message::ChatMessageChanged(msg) => {
+            println!("chat message changed!!!: `{}`", msg);
+            app.chat_message = msg
+        }
+        Message::SendChatMessage => {
+            let msg = std::mem::take(&mut app.chat_message);
+            app.endpoint.send_chat_message(msg);
+        }
+        Message::TransitionAndSetEndpoint(input, endpoint) => {
+            match app.endpoint {
+                Endpoint::Client(_) | Endpoint::Server(_) => return,
+                _ => {}
+            }
+            // let component = T::empty();
+            app.endpoint = match endpoint {
+                EndpointType::Null => todo!(), //Endpoint::Offline(NullEndpoint::new(None)),
+                EndpointType::Client => Endpoint::Client(ChatClient::new(&app.ip_address).unwrap()),
+                EndpointType::Server => Endpoint::Server(ChatServer::new(&app.ip_address).unwrap()),
+            };
             app.menu.transition(input);
         }
         Message::VictoryConditionNext => {
@@ -132,6 +196,9 @@ impl App {
         let mut pda = PushdownAutomaton::new(start_state, final_states, transitions);
         Self {
             menu: pda,
+            ip_address: "127.0.0.1:8000".into(),
+            endpoint: Endpoint::Offline(),//Box::new(crate::network::NullEndpoint::new(Game::empty())),
+            chat_message: "".into(),
             players: vec![],
             victory_condition: VictoryCondition::Elimination,
             fog_of_war: false,
@@ -146,7 +213,7 @@ fn get_main_button(display_text: &str, message: Message) -> Button<Message> {
         .width(Length::Fixed(400.))
 }
 
-pub async fn main_menu() -> (bool, App) {
+pub async fn main_menu(assets: &mut Assets) -> (bool, App) {
     let mut state = App::new();
     let mut interface = Interface::<Message>::new();
     // interface.set_theme(iced::Theme::Oxocarbon);
@@ -184,9 +251,43 @@ pub async fn main_menu() -> (bool, App) {
                     text(state.victory_condition.to_string()).size(64).font(FONT_HANDLE),
                     button(text(">").size(64).font(FONT_HANDLE)).on_press(Message::VictoryConditionNext),
                 ).spacing(20))
-                .push(get_main_button("Play", Message::Transition(Input::ToGame)))
+                .push(get_main_button("Play", Message::TransitionAndSetEndpoint(Input::ToGame, EndpointType::Null)))
                 .spacing(20)
             ).into(), //.center(Length::Fill)
+
+            State::Multi => center(column!()
+                .push(text_input(&format!("Address: {}", "127.0.0.1:8000"), &state.ip_address)
+                        .size(64)
+                        .font(FONT_HANDLE)
+                        .width(Length::Fixed(820.))
+                        .on_input(Message::IpAddressChanged))
+                .push(row!()
+                    .push(get_main_button("Join", Message::TransitionAndSetEndpoint(Input::ToLobby, EndpointType::Client)))
+                    .push(get_main_button("Host", Message::TransitionAndSetEndpoint(Input::ToLobby, EndpointType::Server)))
+                    .spacing(20)
+                )
+                .spacing(20)
+                ).into(),
+
+            State::Lobby => {
+                let chatlog: Vec<&ChatMsg> = state.endpoint.get_chatlog();//state.endpoint.get_chatlog();
+                let chatlog_: Vec<String> = chatlog.into_iter().map(|msg| msg.to_string()).collect();
+                let slog: Vec<Text> = chatlog_.into_iter().map(|msg| Text::new(msg.clone()).into()).collect();
+                let elog = slog.into_iter().map(|t| <Text<'_, Theme, Renderer> as Into<Element<Message, Theme>>>::into(t));
+                // let elog = slog.iter().map(|t| t.into());
+
+                let chat_column = Column::with_children(
+                    // chatlog.iter().map(|msg| Element::from(Text::from(msg.to_string().as_str()))).collect::<Vec<Element<_, _>>>()
+                    elog
+                    // todo!()
+                );
+            center(column!()
+                .push(scrollable(chat_column))
+                .push(text_input("press ENTER to send", &state.chat_message)
+                        .on_input(Message::ChatMessageChanged)
+                        .on_submit(Message::SendChatMessage))
+                
+            ).into()},
 
             State::Game => {
                 break

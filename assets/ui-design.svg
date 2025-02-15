@@ -24,16 +24,33 @@
      inkscape:deskcolor="#000000"
      inkscape:document-units="mm"
      inkscape:zoom="0.55076989"
-     inkscape:cx="1233.7276"
+     inkscape:cx="1234.6354"
      inkscape:cy="778.00186"
      inkscape:window-width="2560"
      inkscape:window-height="1361"
      inkscape:window-x="-9"
      inkscape:window-y="-9"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer3" />
+     inkscape:current-layer="g20" />
   <defs
      id="defs1">
+    <inkscape:path-effect
+       effect="fillet_chamfer"
+       id="path-effect22"
+       is_visible="true"
+       lpeversion="1"
+       nodesatellites_param="F,0,0,1,0,13.229167,0,1 @ F,0,0,1,0,13.229167,0,1 @ F,0,0,1,0,13.229167,0,1 @ F,0,0,1,0,13.229167,0,1"
+       radius="50"
+       unit="px"
+       method="auto"
+       mode="F"
+       chamfer_steps="1"
+       flexible="false"
+       use_knot_distance="true"
+       apply_no_radius="true"
+       apply_with_radius="true"
+       only_selected="false"
+       hide_knots="false" />
     <inkscape:path-effect
        effect="fillet_chamfer"
        id="path-effect3"
@@ -310,6 +327,24 @@
        width="691.75897"
        height="139.80431"
        id="rect2-5-4-2-5-9-5" />
+    <rect
+       x="933.23907"
+       y="174.30147"
+       width="691.75897"
+       height="139.80431"
+       id="rect20" />
+    <rect
+       x="933.23907"
+       y="174.30147"
+       width="691.75897"
+       height="139.80431"
+       id="rect21" />
+    <rect
+       x="933.23907"
+       y="174.30147"
+       width="691.75897"
+       height="139.80431"
+       id="rect20-3" />
   </defs>
   <g
      inkscape:groupmode="layer"
@@ -344,7 +379,7 @@
        y="0"><tspan
          x="934.98535"
          y="259.23828"
-         id="tspan3">Generate New</tspan></text>
+         id="tspan2">Generate New</tspan></text>
     <rect
        style="fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.065;stroke-dasharray:none;stroke-opacity:1"
        id="rect4"
@@ -358,7 +393,7 @@
      inkscape:groupmode="layer"
      id="layer3"
      inkscape:label="Single"
-     style="display:inline">
+     style="display:none">
     <rect
        style="display:inline;fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.24799;stroke-dasharray:none;stroke-opacity:1"
        id="rect7"
@@ -377,7 +412,7 @@
        inkscape:label="choose-map-text"><tspan
          x="985.35254"
          y="259.23828"
-         id="tspan6">Choose Map</tspan></text>
+         id="tspan3">Choose Map</tspan></text>
     <g
        id="g5"
        inkscape:label="play-button"
@@ -402,7 +437,7 @@
          y="0"><tspan
            x="1179.0166"
            y="259.23828"
-           id="tspan7">Play</tspan></text>
+           id="tspan6">Play</tspan></text>
     </g>
     <text
        xml:space="preserve"
@@ -443,6 +478,119 @@
   </g>
   <g
      inkscape:groupmode="layer"
+     id="g20"
+     inkscape:label="Lobby"
+     style="display:inline">
+    <rect
+       style="display:inline;fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.55527;stroke-dasharray:none;stroke-opacity:1"
+       id="rect6"
+       width="231.05681"
+       height="359.80081"
+       x="223.13826"
+       y="10.91123"
+       inkscape:label="player-list" />
+    <g
+       id="g17"
+       inkscape:label="play-button"
+       transform="translate(233.67379,73.515851)">
+      <path
+         style="display:inline;fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.065;stroke-dasharray:none;stroke-opacity:1"
+         id="path16"
+         width="184.94943"
+         height="37.950665"
+         x="246.19196"
+         y="46.117264"
+         sodipodi:type="rect"
+         inkscape:path-effect="#path-effect22"
+         d="m 259.42112,46.117264 h 158.4911 a 13.229167,13.229167 45 0 1 13.22917,13.229167 v 11.49233 A 13.229167,13.229167 135 0 1 417.91222,84.067928 H 259.42112 A 13.229167,13.229167 45 0 1 246.19196,70.838761 v -11.49233 a 13.229167,13.229167 135 0 1 13.22916,-13.229167 z"
+         transform="translate(-2.6070954,213.41241)" />
+      <text
+         xml:space="preserve"
+         transform="matrix(0.26458333,0,0,0.26458333,-2.3923704,217.11657)"
+         id="text17"
+         style="font-size:96px;text-align:center;white-space:pre;shape-inside:url(#rect21);display:inline;fill:#370909;fill-opacity:1;stroke:#000000;stroke-opacity:1"
+         x="93.960938"
+         y="0"><tspan
+           x="1179.0166"
+           y="259.23828"
+           id="tspan7">Play</tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:18.073px;text-align:center;text-anchor:middle;fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:0.757782;stroke-dasharray:none;stroke-opacity:1"
+       x="567.7616"
+       y="245.04092"
+       id="text18"
+       inkscape:label="victory-condition-text"><tspan
+         sodipodi:role="line"
+         id="tspan18"
+         style="stroke-width:0.757782"
+         x="567.7616"
+         y="245.04092">Victory Condition:</tspan><tspan
+         sodipodi:role="line"
+         style="stroke-width:0.757782"
+         x="567.7616"
+         y="267.63217"
+         id="tspan22">&lt; Elimination &gt;</tspan></text>
+    <g
+       id="g19"
+       inkscape:label="fog-of-war-toggle"
+       transform="matrix(0.71153265,0,0,0.71153265,327.26751,129.00578)"
+       style="display:inline">
+      <text
+         xml:space="preserve"
+         style="font-size:25.4px;text-align:center;text-anchor:middle;fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.065;stroke-dasharray:none;stroke-opacity:1"
+         x="347.31519"
+         y="127.28973"
+         id="text19"><tspan
+           sodipodi:role="line"
+           id="tspan19"
+           style="stroke-width:1.065"
+           x="347.31519"
+           y="127.28973">Fog of War</tspan></text>
+      <rect
+         style="fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.065;stroke-dasharray:none;stroke-opacity:1"
+         id="rect19"
+         width="13.450869"
+         height="13.450869"
+         x="259.28214"
+         y="111.93044" />
+    </g>
+    <g
+       id="g22"
+       inkscape:label="map"
+       transform="translate(-34.366254,48.627182)">
+      <rect
+         style="display:inline;fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:0.742832;stroke-dasharray:none;stroke-opacity:1"
+         id="rect6-5"
+         width="137.71317"
+         height="137.71317"
+         x="531.56445"
+         y="7.8979974"
+         inkscape:label="map-thumbnail" />
+      <text
+         xml:space="preserve"
+         transform="matrix(0.15748602,0,0,0.15748602,398.96677,40.099096)"
+         id="text16-8"
+         style="font-size:96px;text-align:center;white-space:pre;shape-inside:url(#rect20-3);display:inline;fill:#370909;fill-opacity:1;stroke:#000000;stroke-opacity:1"
+         x="93.960938"
+         y="0"
+         inkscape:label="choose-map-text"><tspan
+           x="985.35254"
+           y="259.23828"
+           id="tspan16">Choose Map</tspan></text>
+    </g>
+    <rect
+       style="display:inline;fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.31473;stroke-dasharray:none;stroke-opacity:1"
+       id="rect6-4"
+       width="165.00378"
+       height="360.04135"
+       x="26.475679"
+       y="11.239106"
+       inkscape:label="chat-window" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
      id="layer2"
      inkscape:label="Multi"
      style="display:none">
@@ -466,7 +614,7 @@
        y="0"><tspan
          x="1071.79"
          y="259.23828"
-         id="tspan8">Address:</tspan></text>
+         id="tspan17">Address:</tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,22.359043,80.176014)"
@@ -476,7 +624,7 @@
        y="0"><tspan
          x="967.53418"
          y="259.23828"
-         id="tspan9">192.168.0.1:8000</tspan></text>
+         id="tspan20">192.168.0.1:8000</tspan></text>
     <path
        style="display:inline;fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.065;stroke-dasharray:none;stroke-opacity:1"
        id="rect1-7-8-9-0"
@@ -497,7 +645,7 @@
        y="0"><tspan
          x="1191.8369"
          y="259.23828"
-         id="tspan10">Join</tspan></text>
+         id="tspan21">Join</tspan></text>
     <path
        style="display:inline;fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.065;stroke-dasharray:none;stroke-opacity:1"
        id="rect1-7-8-9-6"
@@ -518,7 +666,7 @@
        y="0"><tspan
          x="1169.8291"
          y="259.23828"
-         id="tspan11">Host</tspan></text>
+         id="tspan23">Host</tspan></text>
   </g>
   <g
      inkscape:label="Main"
@@ -545,7 +693,7 @@
        y="0"><tspan
          x="1179.0166"
          y="259.23828"
-         id="tspan12">Play</tspan></text>
+         id="tspan24">Play</tspan></text>
     <path
        style="fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.065;stroke-dasharray:none;stroke-opacity:1"
        id="rect1-7"
@@ -566,7 +714,7 @@
        y="0"><tspan
          x="1010.8994"
          y="259.23828"
-         id="tspan13">Multiplayer</tspan></text>
+         id="tspan25">Multiplayer</tspan></text>
     <path
        style="fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.065;stroke-dasharray:none;stroke-opacity:1"
        id="rect1-7-8"
@@ -587,7 +735,7 @@
        y="0"><tspan
          x="1082.2432"
          y="259.23828"
-         id="tspan14">Settings</tspan></text>
+         id="tspan26">Settings</tspan></text>
     <path
        style="fill:#282828;fill-opacity:1;stroke:#3a0909;stroke-width:1.065;stroke-dasharray:none;stroke-opacity:1"
        id="rect1-7-8-9"
@@ -608,6 +756,6 @@
        y="0"><tspan
          x="1188.2275"
          y="259.23828"
-         id="tspan15">Exit</tspan></text>
+         id="tspan27">Exit</tspan></text>
   </g>
 </svg>

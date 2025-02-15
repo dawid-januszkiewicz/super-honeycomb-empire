@@ -1,4 +1,4 @@
-use crate::{cubic::{self, Layout}, inputs::{draw_tile_selector, poll_inputs, poll_map_editor_inputs}, mquad::*, rules::Ruleset, world::{Locality, Player, TileCategory}, Component, Fog, VisibilityMask};
+use crate::{cubic::{self, Layout}, game::VictoryCondition, inputs::{draw_tile_selector, poll_inputs, poll_map_editor_inputs}, mquad::*, rules::Ruleset, world::{Locality, Player, TileCategory}, Component, Fog, VisibilityMask};
 
 use std::{collections::{HashMap, HashSet}, fs::{OpenOptions, File}};
 use std::slice::Iter;
@@ -14,7 +14,7 @@ use crate::{cubic::Cube, world::{Tile, World, LocalityCategory}};
 pub struct Editor {
     pub world: World,
     pub players: Vec<Player>,
-    pub player_fogs: HashMap<usize, crate::Fog>,
+    pub player_views: HashMap<usize, World>,
     pub rules: Ruleset,
     pub brush: Brush,
 }
@@ -116,7 +116,7 @@ impl RemoveItem for TileCategory {
 impl Editor {
     pub fn new(world: World, players: Vec<Player>) -> Self {
         let rules = Ruleset::default(crate::VictoryCondition::Elimination, &players);
-        Editor{world, brush: Brush::default(), players, player_fogs: HashMap::new(), rules}
+        Editor{world, brush: Brush::default(), players, player_views: HashMap::new(), rules}
     }
     pub fn to_json(&self, path: &str) {
         let file = File::create(&path).expect("Failed to open the file.");
@@ -214,6 +214,15 @@ impl crate::Component for Editor {
     fn update(&mut self) {
         {}
     }
+    // fn empty() -> Self {
+    //     let players = vec!();
+    //     let world: World = World::new();
+    //     let player_views: HashMap<usize, World> = HashMap::new();
+    //     let victory_condition = VictoryCondition::default();
+    //     let rules = Ruleset::default(victory_condition, &players);
+
+    //     Self {world, brush: Brush::default(), players, player_views: HashMap::new(), rules}
+    // }
 }
 
 // pub fn save_world(hashmap: &HashMap<Cube<i32>, Tile>, path: &str) {

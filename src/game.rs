@@ -35,8 +35,9 @@ use crate::world::Command;
 use crate::world::TileCategory;
 use crate::world::gen::*;
 
-#[derive(Serialize, Deserialize, EnumIter, Display, PartialEq)]
+#[derive(Serialize, Deserialize, EnumIter, Display, PartialEq, Default)]
 pub enum VictoryCondition {
+    #[default]
     Elimination,
     Territory(f32),
     CaptureAndHold(HashSet<Cube<i32>>),
@@ -65,7 +66,8 @@ pub struct Game {
     // #[serde(skip_serializing)]
     // pub player_visibilities: HashMap<usize, crate::VisibilityMask>,
     // pub player_observers: HashMap<usize, HashMap<Cube<i32>, Cube<i32>>>,
-    pub player_fogs: HashMap<usize, crate::Fog>,
+    // pub player_fogs: HashMap<usize, crate::Fog>,
+    pub player_views: HashMap<usize, World>,
     pub rules: Ruleset,
 }
 
@@ -78,7 +80,7 @@ impl From<crate::map_editor::Editor> for Game {
         //         players.push(player);
         //     }
         // );
-        crate::Game{turn: 1, players: value.players, world: value.world, player_fogs: value.player_fogs, rules: value.rules}
+        crate::Game{turn: 1, players: value.players, world: value.world, player_views: value.player_views, rules: value.rules}
     }
 }
 
@@ -89,28 +91,28 @@ impl From<Game> for crate::map_editor::Editor {
 }
 
 impl Game {
-    pub fn init_fogs(game: &mut Self) {
-        for (player_idx, fog_flag) in game.rules.fog_of_war.clone() {
+    pub fn init_views(&mut self) {
+        for (player_idx, fog_flag) in self.rules.fog_of_war.clone() {
             if fog_flag {
-                let fog = crate::Fog::default();
-                game.player_fogs.insert(player_idx, fog);
+                // let view = self.world.iter().filter(|c, t| );
+                self.player_views.insert(player_idx, World::new());
             }
         }
     }
     pub fn new(players: Vec<Player>, rules: Ruleset, assets: &mut Assets) -> Self {
         let world: World = World::new();
-        let player_fogs = HashMap::new();
+        let player_views = HashMap::new();
 
         let mut game = Self {
             turn: 1,
             players,
             world,
-            player_fogs,
+            player_views,
             rules,
         };
     
         Game::init_world(&mut game, assets);
-        Game::init_fogs(&mut game);
+        Game::init_views(&mut game);
         game
     }
     // pub async fn draw(&self, &layout: &Layout<f32>, assets: &Assets, time: f32) {
@@ -306,6 +308,21 @@ impl crate::Component for Game {
     fn update(&mut self) {
         self._update()
     }
+    // fn empty() -> Self {
+    //     let players = vec!();
+    //     let world: World = World::new();
+    //     let player_views = HashMap::new();
+    //     let victory_condition = VictoryCondition::default();
+    //     let rules = Ruleset::default(victory_condition, &players);
+
+    //     Self {
+    //         turn: 1,
+    //         players,
+    //         world,
+    //         player_views,
+    //         rules,
+    //     }
+    // }
 }
 
 // class Game:
