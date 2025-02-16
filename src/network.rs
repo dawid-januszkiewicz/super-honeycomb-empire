@@ -34,14 +34,8 @@ pub trait Endpoint {
     fn draw(&self, layout: &Layout<f32>, assets: &Assets, time: f32);
     fn update(self: Box<Self>) -> Box<dyn Endpoint>;
     // fn swap_app(self: Box<Self>) -> Box<dyn Endpoint>;
-    fn get_chatlog(&self) -> Vec<&ChatMsg>;
-    fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>>;
 }
 
-// pub trait Chat {
-//     fn get_chatlog(&self) -> Vec<&ChatMsg>;
-//     fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>>;
-// }
 
 #[derive(Debug)]
 pub struct NullEndpoint<T: Component> {
@@ -65,12 +59,6 @@ impl Endpoint for NullEndpoint<Game> {
         self.app.update();
         self
     }
-    fn get_chatlog(&self) -> Vec<&ChatMsg> {
-        panic!("undefined")
-    }
-    fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>> {
-        panic!("undefined")
-    }
 }
 
 // impl<T: Component + 'static> Endpoint for Client<T> {
@@ -89,7 +77,7 @@ impl Endpoint for NullEndpoint<Game> {
 //     }
 // }
 
-impl Endpoint for Client<Game> {
+impl Endpoint for ClientApp<Game> {
     fn poll(&mut self, layout: &mut Layout<f32>) -> bool {
         crate::poll_inputs_client(self, layout)
     }
@@ -125,17 +113,9 @@ impl Endpoint for Client<Game> {
     //     let app = self.app.swap();
     //     Box::new(Server::new(app, "127.0.0.1:8080").unwrap())
     // }
-    fn get_chatlog(&self) -> Vec<&ChatMsg> {
-        let chatlog: Vec<&ChatMsg> = self.chatlog.iter().collect();
-        chatlog
-    }
-    fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>> {
-        let message = Message::Chat(ChatMsg::from_str(&msg));
-        write_json_message(&self.stream, &message)
-    }
 }
 
-// impl<T: Component + 'static> Endpoint for Server<T> {
+// impl<T: Component + 'static> Endpoint for ServerApp<T> {
 //     fn poll(&mut self, layout: &mut Layout<f32>) -> bool {
 //         self.app.poll(layout)
 //     }
@@ -151,7 +131,7 @@ impl Endpoint for Client<Game> {
 //     }
 // }
 
-impl Endpoint for Server<Game> {
+impl Endpoint for ServerApp<Game> {
     fn poll(&mut self, layout: &mut Layout<f32>) -> bool {
         // true
         self.app.poll(layout)
@@ -169,49 +149,43 @@ impl Endpoint for Server<Game> {
     //     let app = self.app.swap();
     //     Box::new(Server::new(app, "127.0.0.1:8080").unwrap())
     // }
-    fn get_chatlog(&self) -> Vec<&ChatMsg> {
-        let chatlog: Vec<&ChatMsg> = self.chatlog.iter().collect();
-        chatlog
-    }
-    fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>> {
-        let author = "Server".to_string();
-        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let message = ChatMsg {body: msg, author, timestamp};
-        for (_, s) in self.streams.iter() {
-            write_json_message(s, &Message::Chat(message.clone()));
-        };
-        self.chatlog.push(message);
-        Ok(()) // todo: handle one or more errors
-    }
 }
 
 #[derive(Debug)]
-pub struct Client<T: Component> {
+pub struct Client {
+    pub stream: TcpStream,
+    pub chatlog: Vec<ChatMsg>,
+}
+
+#[derive(Debug)]
+pub struct ClientApp<T: Component> {
     pub app: T,
     pub stream: TcpStream,
     chatlog: Vec<ChatMsg>,
 }
 
-#[derive(Debug)]
-pub struct ChatClient {
-    pub stream: TcpStream,
-    pub chatlog: Vec<ChatMsg>,
+pub trait ChatClient {
+    // fn chatlog_mut(&mut self) -> &mut Vec<ChatMsg>;
+    fn stream(&self) -> &TcpStream;
+    fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>> {
+        let message = Message::Chat(ChatMsg::from_str(&msg));
+        write_json_message(&self.stream(), &message)
+    }
 }
 
-// pub struct Client_<S> {_marker: std::marker::PhantomData<S>}
+impl ChatClient for Client {
+    fn stream(&self) -> &TcpStream {
+        &self.stream
+    }
+}
 
-// impl<S> Client_<S> {
-//     fn get_chatlog(&self) -> Vec<&ChatMsg> {
-//         let chatlog: Vec<&ChatMsg> = self.chatlog.iter().collect();
-//         chatlog
-//     }
-//     fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>> {
-//         let message = Message::Chat(ChatMsg::from_str(&msg));
-//         write_json_message(&self.stream, &message)
-//     }
-// }
+impl<T: Component> ChatClient for ClientApp<T> {
+    fn stream(&self) -> &TcpStream {
+        &self.stream
+    }
+}
 
-impl ChatClient {
+impl Client {
     pub fn new<A: std::net::ToSocketAddrs + core::fmt::Display>(addr: A) -> Result<Self, std::io::Error> {
         println!("Connecting to {}...", addr);
         let stream = TcpStream::connect(addr)?;
@@ -288,7 +262,7 @@ impl Command {
 //     }
 // }
 
-impl Client<Game> {
+impl ClientApp<Game> {
     pub fn new<A: std::net::ToSocketAddrs + core::fmt::Display>(mut app: Game, addr: A) -> Result<Self, std::io::Error> {
         println!("Connecting to {}...", addr);
         let stream = TcpStream::connect(addr)?;
@@ -333,7 +307,7 @@ impl core::fmt::Display for ServerResponseError {
 impl std::error::Error for ServerResponseError {}
 
 
-impl Client<Game> {
+impl ClientApp<Game> {
     pub fn send_command(&mut self, command: Command) -> Result<Command, std::io::Error>{
         let message = Message::Command(command);
         write_json_message(&self.stream, &message);
@@ -367,8 +341,14 @@ pub trait Component {
     // fn empty() -> Self;
 }
 
+pub struct Server {
+    listener: TcpListener,
+    streams: HashMap<usize, TcpStream>, // some players may not have a stream
+    pub chatlog: Vec<ChatMsg>,
+}
+
 #[derive(Debug)]
-pub struct Server<T: Component> {
+pub struct ServerApp<T: Component> {
     // game: Game,
     pub app: T,
     listener: TcpListener,
@@ -376,13 +356,31 @@ pub struct Server<T: Component> {
     chatlog: Vec<ChatMsg>,
 }
 
-pub struct ChatServer {
-    listener: TcpListener,
-    streams: HashMap<usize, TcpStream>, // some players may not have a stream
-    pub chatlog: Vec<ChatMsg>,
+pub trait ChatServer {
+    fn chatlog_mut(&mut self) -> &mut Vec<ChatMsg>;
+    fn streams(&self) -> &HashMap<usize, TcpStream>;
+    fn send_chat_message(&mut self, msg: String) -> Result<(), Box<dyn std::error::Error>> {
+        let author = "Server".to_string();
+        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let message = ChatMsg {body: msg, author, timestamp};
+        for (_, s) in self.streams().iter() {
+            write_json_message(s, &Message::Chat(message.clone()));
+        };
+        self.chatlog_mut().push(message);
+        Ok(()) // todo: handle one or more errors
+    }
 }
 
-impl ChatServer {
+impl ChatServer for Server {
+    fn chatlog_mut(&mut self) -> &mut Vec<ChatMsg> {
+        &mut self.chatlog
+    }
+    fn streams(&self) -> &HashMap<usize, TcpStream> {
+        &self.streams
+    }
+}
+
+impl Server {
     pub fn new<A: std::net::ToSocketAddrs>(addr: A) -> Result<Self, std::io::Error>{
         let listener = std::net::TcpListener::bind(addr)?;
         listener.set_nonblocking(true)?;
@@ -394,8 +392,8 @@ impl ChatServer {
     }
 }
 
-impl<T: Component> Server<T> {
-    pub fn new<A: std::net::ToSocketAddrs>(app: T, addr: A) -> Result<Server<T>, std::io::Error>{
+impl<T: Component> ServerApp<T> {
+    pub fn new<A: std::net::ToSocketAddrs>(app: T, addr: A) -> Result<ServerApp<T>, std::io::Error>{
         let listener = std::net::TcpListener::bind(addr)?;
         listener.set_nonblocking(true)?;
         let streams = HashMap::new();
@@ -406,7 +404,7 @@ impl<T: Component> Server<T> {
     }
 }
 
-impl Server<Game> {
+impl ServerApp<Game> {
     fn handle_client(mut self) -> std::io::Result<Self> {
         for stream in self.listener.incoming() {
             match stream {
@@ -678,7 +676,7 @@ impl core::fmt::Display for Message {
     }
 }
 
-impl Client<Game> {
+impl ClientApp<Game> {
     fn handle_message(&mut self, message: Message) {
         match message {
             Message::NewPlayer { starting_position, player } => {

@@ -111,8 +111,8 @@ pub struct App {
 }
 
 pub enum Endpoint {
-    Client(ChatClient),
-    Server(ChatServer),
+    Client(Client),
+    Server(Server),
     Offline(),
 }
 
@@ -127,8 +127,12 @@ impl Endpoint {
 }
 
 impl Endpoint {
-    fn send_chat_message(&self, msg: String) {
-        self.send_chat_message(msg);
+    fn send_chat_message(&mut self, msg: String) {
+        match self {
+            Endpoint::Client(c) => c.send_chat_message(msg),
+            Endpoint::Server(s) => s.send_chat_message(msg),
+            Endpoint::Offline() => panic!(),
+        };
     }
 }
 
@@ -162,8 +166,8 @@ fn update(app: &mut App, message: Message) {
             // let component = T::empty();
             app.endpoint = match endpoint {
                 EndpointType::Null => todo!(), //Endpoint::Offline(NullEndpoint::new(None)),
-                EndpointType::Client => Endpoint::Client(ChatClient::new(&app.ip_address).unwrap()),
-                EndpointType::Server => Endpoint::Server(ChatServer::new(&app.ip_address).unwrap()),
+                EndpointType::Client => Endpoint::Client(Client::new(&app.ip_address).unwrap()),
+                EndpointType::Server => Endpoint::Server(Server::new(&app.ip_address).unwrap()),
             };
             app.menu.transition(input);
         }

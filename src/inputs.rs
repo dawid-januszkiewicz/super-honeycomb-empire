@@ -156,7 +156,7 @@ pub fn poll_inputs(game: &mut Game, layout: &mut Layout<f32>) -> bool {
     exit
 }
 
-pub fn poll_inputs_client(client: &mut crate::Client<Game>, layout: &mut Layout<f32>) -> bool {
+pub fn poll_inputs_client(client: &mut crate::ClientApp<Game>, layout: &mut Layout<f32>) -> bool {
     // if is_key_down() {
     //     let key = last_key_pressed();
     // }

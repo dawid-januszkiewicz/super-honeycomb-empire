@@ -286,8 +286,8 @@ async fn main() {
     }
 
     let mut endpoint: Box<dyn Endpoint> = match args.mode { // possibly replace Box<dyn Endpoint> with trait Endpoint if and when existential types are stabilised
-        Mode::Client => Box::new(Client::new(game, &args.addrs).unwrap()),
-        Mode::Server => Box::new(Server::new(game, &args.addrs).unwrap()),
+        Mode::Client => Box::new(ClientApp::new(game, &args.addrs).unwrap()),
+        Mode::Server => Box::new(ServerApp::new(game, &args.addrs).unwrap()),
         Mode::Offline => Box::new(NullEndpoint::new(game)),
     };
     println!("endpoint initialised!");
