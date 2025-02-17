@@ -26,7 +26,7 @@ use game::*;
 //use miniquad::{gl::glShaderSource, native::linux_x11::libx11::VisibilityChangeMask, UniformDesc};
 use miniquad::UniformDesc;
 use rules::Ruleset;
-use ui::main_menu;
+use ui::{main_menu, Endpoint};
 use world::*;
 use inputs::*;
 use map_editor::*;
@@ -257,7 +257,6 @@ fn new_game(rules: Ruleset, assets: &mut Assets) -> Game {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    // ui::test_ui();
     set_pc_assets_folder("assets");
     let mut assets = load_assets().await;
 
@@ -265,32 +264,29 @@ async fn main() {
 
     if exit {return};
 
+    // let mut game = new_game(Ruleset::from(ui), &mut assets);
+    let endpoint = ui.endpoint;
+    let players = std::mem::take(&mut ui.players);
+    let rules = Ruleset::from(ui);
+    let mut game = Game::new(players, rules, &mut assets);
+    // let mut game = Game::from_ui(ui, &mut assets);
+    let endpoint_app = network::Endpoint::from_ui(endpoint, game);
+    println!("init complete!");
 
-    // run_editor(&assets).await;
 
-    let mut game = new_game(Ruleset::from(ui), &mut assets);
-    // println!("Players (inside main): {:?}", game.players);
+    // let args = Cli::parse();
+    // match args.mode {
+    //     Mode::Client => println!("Running in client mode"),
+    //     Mode::Server => println!("Running in server mode"),
+    //     Mode::Offline => println!("Running in offline mode"),
+    // }
 
-    // Game {turn: 0, Vec::new(), World::new(), HashMap::new(), Ruleset::new()}
+    // let mut endpoint: Box<dyn Endpoint> = match args.mode { // possibly replace Box<dyn Endpoint> with trait Endpoint if and when existential types are stabilised
+    //     Mode::Client => Box::new(ClientApp::new(game, &args.addrs).unwrap()),
+    //     Mode::Server => Box::new(ServerApp::new(game, &args.addrs).unwrap()),
+    //     Mode::Offline => Box::new(NullEndpoint::new(game)),
+    // };
 
-    // let river = crate::river::generate_river(game.world.keys().collect());
-    // println!("river: {:?}", river);
-
-    // let mut app: &mut dyn Component = &mut game;
-
-    let args = Cli::parse();
-    match args.mode {
-        Mode::Client => println!("Running in client mode"),
-        Mode::Server => println!("Running in server mode"),
-        Mode::Offline => println!("Running in offline mode"),
-    }
-
-    let mut endpoint: Box<dyn Endpoint> = match args.mode { // possibly replace Box<dyn Endpoint> with trait Endpoint if and when existential types are stabilised
-        Mode::Client => Box::new(ClientApp::new(game, &args.addrs).unwrap()),
-        Mode::Server => Box::new(ServerApp::new(game, &args.addrs).unwrap()),
-        Mode::Offline => Box::new(NullEndpoint::new(game)),
-    };
-    println!("endpoint initialised!");
     // endpoint = Box::new(endpoint.swap_app())
     
     // let mut client = Client::new(game, "").unwrap();
@@ -315,12 +311,12 @@ async fn main() {
 
     let mut time = 0.0;
     while !exit {
-        exit = endpoint.poll(&mut layout);
-        endpoint.draw(&mut layout, &mut assets, time);
+        exit = endpoint_app.poll(&mut layout);
+        endpoint_app.draw(&mut layout, &mut assets, time);
         next_frame().await;
-        endpoint = endpoint.update();
+        endpoint_app = endpoint_app.update();
         // if is_key_pressed(KeyCode::F1) {
-        //     endpoint = endpoint.swap_app();
+        //     endpoint_app = endpoint_app.swap_app();
         // }
         time += get_frame_time();
     }

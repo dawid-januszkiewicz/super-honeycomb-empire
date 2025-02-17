@@ -99,12 +99,12 @@ enum Message {
 }
 
 // #[derive(Default)]
-pub struct App {
+pub struct Ui {
     menu: PushdownAutomaton<State, Input, State>,
     ip_address: String,
-    endpoint: Endpoint,
+    pub endpoint: Endpoint,
     chat_message: String,
-    players: Vec<Player>,
+    pub players: Vec<Player>,
     victory_condition: VictoryCondition,
     fog_of_war: bool,
     exit: bool,
@@ -136,63 +136,63 @@ impl Endpoint {
     }
 }
 
-impl From<App> for Ruleset {
-    fn from(app: App) -> Self {
-        Self::default(app.victory_condition, &app.players)
+impl From<Ui> for Ruleset {
+    fn from(ui: Ui) -> Self {
+        Self::default(ui.victory_condition, &ui.players)
     }
 }
 
-fn update(app: &mut App, message: Message) {
+fn update(ui: &mut Ui, message: Message) {
     match message {
         Message::Transition(input) => {
-            app.menu.transition(input);
+            ui.menu.transition(input);
         }
         Message::IpAddressChanged(addr) => {
-            app.ip_address = addr;
+            ui.ip_address = addr;
         }
         Message::ChatMessageChanged(msg) => {
             println!("chat message changed!!!: `{}`", msg);
-            app.chat_message = msg
+            ui.chat_message = msg
         }
         Message::SendChatMessage => {
-            let msg = std::mem::take(&mut app.chat_message);
-            app.endpoint.send_chat_message(msg);
+            let msg = std::mem::take(&mut ui.chat_message);
+            ui.endpoint.send_chat_message(msg);
         }
         Message::TransitionAndSetEndpoint(input, endpoint) => {
-            match app.endpoint {
+            ui.menu.transition(input);
+            match ui.endpoint {
                 Endpoint::Client(_) | Endpoint::Server(_) => return,
                 _ => {}
             }
-            // let component = T::empty();
-            app.endpoint = match endpoint {
-                EndpointType::Null => todo!(), //Endpoint::Offline(NullEndpoint::new(None)),
-                EndpointType::Client => Endpoint::Client(Client::new(&app.ip_address).unwrap()),
-                EndpointType::Server => Endpoint::Server(Server::new(&app.ip_address).unwrap()),
+            if matches!(endpoint, EndpointType::Null) {return}
+            ui.endpoint = match endpoint {
+                EndpointType::Null => panic!(), //todo!(), //Endpoint::Offline(NullEndpoint::new(None)),
+                EndpointType::Client => Endpoint::Client(Client::new(&ui.ip_address).unwrap()),
+                EndpointType::Server => Endpoint::Server(Server::new(&ui.ip_address).unwrap()),
             };
-            app.menu.transition(input);
         }
         Message::VictoryConditionNext => {
-            let i = VictoryCondition::iter().position(|vc| vc == app.victory_condition).unwrap();
-            app.victory_condition = VictoryCondition::iter().cycle().nth(i+1).unwrap();
+            let i = VictoryCondition::iter().position(|vc| vc == ui.victory_condition).unwrap();
+            ui.victory_condition = VictoryCondition::iter().cycle().nth(i+1).unwrap();
         }
         Message::VictoryConditionPrev => {
-            let i = VictoryCondition::iter().rev().position(|vc| vc == app.victory_condition).unwrap();
-            app.victory_condition = VictoryCondition::iter().rev().cycle().nth(i+1).unwrap();
-            //app.victory_condition = VictoryCondition::iter().rev().cycle().skip_while(|vc| *vc == app.victory_condition).next().unwrap();
-            // let n = VictoryCondition::iter().skip_while(|vc| *vc == app.victory_condition).count();
+            let i = VictoryCondition::iter().rev().position(|vc| vc == ui.victory_condition).unwrap();
+            ui.victory_condition = VictoryCondition::iter().rev().cycle().nth(i+1).unwrap();
+            //ui.victory_condition = VictoryCondition::iter().rev().cycle().skip_while(|vc| *vc == ui.victory_condition).next().unwrap();
+            // let n = VictoryCondition::iter().skip_while(|vc| *vc == ui.victory_condition).count();
             // let n = if n == 0 {VictoryCondition::iter().len()} else {n - 1};
-            // app.victory_condition = VictoryCondition::iter().skip(n).next().unwrap();
+            // ui.victory_condition = VictoryCondition::iter().skip(n).next().unwrap();
         }
         Message::FogOfWarToggled => {
-            app.fog_of_war = !app.fog_of_war;
+            ui.fog_of_war = !ui.fog_of_war;
         }
         Message::Exit => {
-            app.exit = true;
+            ui.exit = true;
         }
     }
 }
 
-impl App {
+impl Ui {
     fn new() -> Self {
         let transitions = generate_transitions();
         let start_state = &State::Main;
@@ -201,7 +201,7 @@ impl App {
         Self {
             menu: pda,
             ip_address: "127.0.0.1:8000".into(),
-            endpoint: Endpoint::Offline(),//Box::new(crate::network::NullEndpoint::new(Game::empty())),
+            endpoint: Endpoint::Offline(),
             chat_message: "".into(),
             players: vec![],
             victory_condition: VictoryCondition::Elimination,
@@ -217,8 +217,23 @@ fn get_main_button(display_text: &str, message: Message) -> Button<Message> {
         .width(Length::Fixed(400.))
 }
 
-pub async fn main_menu(assets: &mut Assets) -> (bool, App) {
-    let mut state = App::new();
+fn get_sp_menu<'a>(state: &Ui) -> Container<'a, Message> {
+    let m = center(column!()
+    .push(button(text("Choose Map").size(64).font(FONT_HANDLE).center()).on_press(Message::Transition(Input::ToMap)).width(900).height(900))
+    .push(checkbox("Fog of War", state.fog_of_war).on_toggle(|_| Message::FogOfWarToggled).font(FONT_HANDLE).text_size(64).size(64))
+    .push(row!(
+        text("Victory Condition:").size(64).font(FONT_HANDLE),
+        button(text("<").size(64).font(FONT_HANDLE)).on_press(Message::VictoryConditionPrev),
+        text(state.victory_condition.to_string()).size(64).font(FONT_HANDLE),
+        button(text(">").size(64).font(FONT_HANDLE)).on_press(Message::VictoryConditionNext),
+    ).spacing(20))
+    .push(get_main_button("Play", Message::TransitionAndSetEndpoint(Input::ToGame, EndpointType::Null)))
+    .spacing(20));
+    m
+}
+
+pub async fn main_menu(assets: &mut Assets) -> (bool, Ui) {
+    let mut state = Ui::new();
     let mut interface = Interface::<Message>::new();
     // interface.set_theme(iced::Theme::Oxocarbon);
     let mut messages = Vec::new();
@@ -246,18 +261,7 @@ pub async fn main_menu(assets: &mut Assets) -> (bool, App) {
                 .spacing(20)
             ).into(),
 
-            State::Single => center(column!()
-                .push(button(text("Choose Map").size(64).font(FONT_HANDLE).center()).on_press(Message::Transition(Input::ToMap)).width(900).height(900))
-                .push(checkbox("Fog of War", state.fog_of_war).on_toggle(|_| Message::FogOfWarToggled).font(FONT_HANDLE).text_size(64).size(64))
-                .push(row!(
-                    text("Victory Condition:").size(64).font(FONT_HANDLE),
-                    button(text("<").size(64).font(FONT_HANDLE)).on_press(Message::VictoryConditionPrev),
-                    text(state.victory_condition.to_string()).size(64).font(FONT_HANDLE),
-                    button(text(">").size(64).font(FONT_HANDLE)).on_press(Message::VictoryConditionNext),
-                ).spacing(20))
-                .push(get_main_button("Play", Message::TransitionAndSetEndpoint(Input::ToGame, EndpointType::Null)))
-                .spacing(20)
-            ).into(), //.center(Length::Fill)
+            State::Single => get_sp_menu(&state).into(), //.center(Length::Fill)
 
             State::Multi => center(column!()
                 .push(text_input(&format!("Address: {}", "127.0.0.1:8000"), &state.ip_address)
@@ -285,13 +289,14 @@ pub async fn main_menu(assets: &mut Assets) -> (bool, App) {
                     elog
                     // todo!()
                 );
-            center(column!()
-                .push(scrollable(chat_column))
-                .push(text_input("press ENTER to send", &state.chat_message)
-                        .on_input(Message::ChatMessageChanged)
-                        .on_submit(Message::SendChatMessage))
-                
-            ).into()},
+            center(row![
+                column!()
+                    .push(scrollable(chat_column))
+                    .push(text_input("press ENTER to send", &state.chat_message)
+                            .on_input(Message::ChatMessageChanged)
+                            .on_submit(Message::SendChatMessage)),
+                get_sp_menu(&state),
+            ]).into()},
 
             State::Game => {
                 break

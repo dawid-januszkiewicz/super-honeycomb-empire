@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use strum::Display;
 
+use crate::ui;
 use crate::Assets;
 use crate::Controller;
 use crate::Cube;
@@ -34,6 +35,7 @@ pub trait Endpoint {
     fn draw(&self, layout: &Layout<f32>, assets: &Assets, time: f32);
     fn update(self: Box<Self>) -> Box<dyn Endpoint>;
     // fn swap_app(self: Box<Self>) -> Box<dyn Endpoint>;
+    fn from_ui(self: Box<Self>, ui: ui::Endpoint, game: Game) -> Self;//Box<dyn Endpoint>;//Self where Self: Sized;
 }
 
 
@@ -58,6 +60,12 @@ impl Endpoint for NullEndpoint<Game> {
     fn update(mut self: Box<Self>) -> Box<dyn Endpoint> {
         self.app.update();
         self
+    }
+    fn from_ui(ui: ui::Endpoint, game: Game) -> Self where Self: Sized {
+        match ui {
+            Offline => Self {app: game},
+            _ => panic!(),
+        }
     }
 }
 
@@ -113,6 +121,12 @@ impl Endpoint for ClientApp<Game> {
     //     let app = self.app.swap();
     //     Box::new(Server::new(app, "127.0.0.1:8080").unwrap())
     // }
+    fn from_ui(ui: ui::Endpoint, game: Game) -> Self where Self: Sized {
+        match ui {
+            ui::Endpoint::Client(c) => Self {app: game, stream: c.stream, chatlog: c.chatlog},
+            _ => panic!(),
+        }
+    }
 }
 
 // impl<T: Component + 'static> Endpoint for ServerApp<T> {
@@ -149,6 +163,12 @@ impl Endpoint for ServerApp<Game> {
     //     let app = self.app.swap();
     //     Box::new(Server::new(app, "127.0.0.1:8080").unwrap())
     // }
+    fn from_ui(ui: ui::Endpoint, game: Game) -> Self where Self: Sized {
+        match ui {
+            ui::Endpoint::Server(s) => Self {app: game, streams: s.streams, chatlog: s.chatlog, listener: s.listener},
+            _ => panic!(),
+        }
+    }
 }
 
 #[derive(Debug)]

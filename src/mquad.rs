@@ -330,8 +330,12 @@ pub fn draw(game: &Game, &layout: &Layout<f32>, assets: &Assets, time: f32) {
 
     // draw_game_tiles(&world, &layout, assets);
 
-    game.world.draw_base_tiles(&layout, &assets, time);
-    game.world.draw_game_tiles(&layout, &assets);
+    let view = game.current_player_index()
+        .and_then(|pid| game.player_views.get(&pid))
+        .unwrap_or(&game.world);
+
+    view.draw_base_tiles(&layout, &assets, time);
+    view.draw_game_tiles(&layout, &assets);
 
     draw_tile_selector(&layout);
 

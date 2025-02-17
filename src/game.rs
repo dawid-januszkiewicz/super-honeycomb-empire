@@ -20,6 +20,7 @@ use strum::{EnumIter, Display};
 
 use crate::cubic::*;
 use crate::rules::Ruleset;
+use crate::ui::Ui;
 use crate::Army;
 use crate::Component;
 use crate::Controller;
@@ -112,7 +113,8 @@ impl Game {
         };
     
         Game::init_world(&mut game, assets);
-        Game::init_views(&mut game);
+        game.init_views();
+        // Game::init_views(&mut game);
         game
     }
     // pub async fn draw(&self, &layout: &Layout<f32>, assets: &Assets, time: f32) {
@@ -142,6 +144,12 @@ impl Game {
 
         serde_json::from_reader(f).expect("file should be proper JSON")
     }
+
+    // pub fn from_ui(mut ui: Ui, assets: &mut Assets) -> Self {
+    //     let players = std::mem::take(&mut ui.players);
+    //     let rules = Ruleset::from(ui);
+    //     Self::new(players, rules, assets)
+    // }
 
     pub fn current_player_index(&self) -> Option<usize> {
         match self.players.len() {
